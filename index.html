@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebGPU Calligraphy — Paper and brush</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">CIS 5650 / PAPER &amp; BRUSH</p>
+          <h1>WebGPU Calligraphy</h1>
+          <p>Smooth paper and a round brush. Draw directly on the page.</p>
+        </div>
+        <div class="controls">
+          <button id="zoom-in" type="button">Zoom +</button>
+          <button id="zoom-out" type="button">Zoom −</button>
+          <button id="reset" type="button">Reset view</button>
+          <button id="clear" type="button">Clear paper</button>
+        </div>
+      </header>
+      <canvas id="canvas" aria-label="Smooth paper. Drag to draw. Shift-drag or right-drag to rotate. Scroll to zoom. Arrow keys rotate; plus and minus zoom; R resets the view." tabindex="0"></canvas>
+      <footer>
+        <span id="status" role="status">Initializing WebGPU…</span>
+        <span>Draw: drag · Rotate: Shift/right-drag or arrows · Zoom: scroll or +/− · R: reset view</span>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
