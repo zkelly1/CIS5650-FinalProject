@@ -1,5 +1,5 @@
 import './style.css';
-import { InkSimulation } from './ink-simulation';
+import { InkSimulation, DEFAULT_PARAMS, type InkParams } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
 import shaderCode from './paper.wgsl?raw';
 
@@ -241,6 +241,26 @@ async function main(): Promise<void> {
     event.preventDefault();
     render();
   });
+  //create slider inputs to modify params at runtime
+  const sliderInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[data-param]'));
+  function syncSliders(): void {
+    for (const input of sliderInputs) {
+      const key = input.dataset.param as keyof InkParams;
+      input.value = String(simulation.params[key]);
+      input.nextElementSibling!.textContent = Number(input.value).toString();
+    }
+  }
+  for (const input of sliderInputs) {
+    input.addEventListener('input', () => {
+      simulation.setParams({ [input.dataset.param as keyof InkParams]: Number(input.value) });
+      input.nextElementSibling!.textContent = Number(input.value).toString();
+    });
+  }
+  document.querySelector('#reset-sliders')!.addEventListener('click', () => {
+    simulation.setParams(DEFAULT_PARAMS);
+    syncSliders();
+  });
+  syncSliders();
   if (!stoppedRendering) {
     status.textContent = 'Smooth paper | Round brush | Live ink · 1024 × 1024';
   }
