@@ -1,4 +1,5 @@
 import './style.css';
+import { InkSimulation } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
 import shaderCode from './paper.wgsl?raw';
 
@@ -32,7 +33,7 @@ async function getGPU(): Promise<{ adapter: GPUAdapter; device: GPUDevice }> {
   }
   
   // Finally, get the device from the adapter 
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('timestamp-query') ? ['timestamp-query'] : [] });
 
   // Register a callback for when this device is lost and can no longer be used.
   // Using .then registers the callback without waiting for device loss here.
@@ -54,7 +55,7 @@ async function getGPU(): Promise<{ adapter: GPUAdapter; device: GPUDevice }> {
 
 async function main(): Promise<void> {
   // 1. Wait for GPU initialization, then extract the device from the result.
-  const { device } = await getGPU();
+  const { adapter, device } = await getGPU();
 
   // 2. Connect the HTML canvas to this device's rendered output.
   const context = canvas.getContext('webgpu');
@@ -82,45 +83,32 @@ async function main(): Promise<void> {
     size: 16, // Four float32 values; matches the WGSL View struct exactly.
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  // Static brush marks live in a paper-space image, not a fluid simulation.
-  const resolution = 1024;
-  const marks = document.createElement('canvas');
-  marks.width = marks.height = resolution;
-  const ink = marks.getContext('2d')!;
-  const paperTexture = device.createTexture({
-    label: 'Smooth paper and static brush marks',
-    size: [resolution, resolution], format: 'rgba8unorm',
-    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-  function uploadPaper(): void {
-    device.queue.copyExternalImageToTexture({ source: marks }, { texture: paperTexture }, [resolution, resolution]);
-  }
-  function clearPaper(): void {
-    ink.fillStyle = '#f6f2e7';
-    ink.fillRect(0, 0, resolution, resolution);
-    uploadPaper();
-  }
-  clearPaper();
-  const bindGroup = device.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0),
-    entries: [
+  const simulation = new InkSimulation(device);
+  await simulation.init();
+  const bindGroups = simulation.buffers.map(buffer => device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(0), entries: [
       { binding: 0, resource: { buffer: viewBuffer } },
-      { binding: 1, resource: paperTexture.createView() },
-      { binding: 2, resource: device.createSampler({ magFilter: 'linear', minFilter: 'linear' }) },
+      { binding: 1, resource: { buffer } },
     ],
-  });
+  }));
+  function clearPaper() { simulation.clear(); }
+  let paused = false;
+  let accumulator = 0;
+  let lastTime = performance.now();
+  const frameTimes: number[] = [];
   let yaw = 0;
   let pitch = 0;
   let distance = 4;
 
-  // 5. Draw on demand: input and resizing trigger a new frame.
+  // 5. Input renders immediately; animation advances a fixed 60 Hz simulation.
   // Pipelines and buffers persist; the canvas texture is acquired each draw.
-  function render(): void {
+  function render(steps = 0): void {
     if (stoppedRendering || !context) return;
     device.queue.writeBuffer(viewBuffer, 0, new Float32Array([
       canvas.width / canvas.height, yaw, pitch, distance,
     ]));
     const encoder = device.createCommandEncoder({ label: 'Paper frame' });
+    simulation.encode(encoder, steps);
     const pass = encoder.beginRenderPass({
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
@@ -130,13 +118,13 @@ async function main(): Promise<void> {
       }],
     });
     pass.setPipeline(pipeline);
-    pass.setBindGroup(0, bindGroup);
+    pass.setBindGroup(0, bindGroups[simulation.current]);
     pass.draw(6); // Six vertex shader invocations produce two triangles.
     pass.end();
     device.queue.submit([encoder.finish()]);
   }
 
-  // Match display pixels, including high-DPI screens. No simulation grid yet.
+  // Display resolution is independent of the 1024-square simulation grid.
   const resizeObserver = new ResizeObserver(() => {
     const ratio = window.devicePixelRatio || 1;
     const limit = device.limits.maxTextureDimension2D;
@@ -157,19 +145,10 @@ async function main(): Promise<void> {
       canvas.width / canvas.height, yaw, pitch, distance,
     );
   }
-  function drawPoint(point: Point, previous?: Point): void {
-    ink.strokeStyle = ink.fillStyle = '#202126';
-    ink.lineWidth = 12;
-    ink.lineCap = ink.lineJoin = 'round';
-    ink.beginPath();
-    if (previous) {
-      ink.moveTo(previous.x * resolution, previous.y * resolution);
-      ink.lineTo(point.x * resolution, point.y * resolution);
-      ink.stroke();
-    } else {
-      ink.arc(point.x * resolution, point.y * resolution, 6, 0, Math.PI * 2);
-      ink.fill();
-    }
+  let sampleTime = 0;
+  function drawPoint(point: Point, previous?: Point, time = performance.now()): void {
+    simulation.stroke(point.x, point.y, previous?.x, previous?.y, previous ? (time-sampleTime)/1000 : 1/60);
+    sampleTime = time;
   }
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
   canvas.addEventListener('pointerdown', (event) => {
@@ -183,8 +162,8 @@ async function main(): Promise<void> {
     if (!rotate) {
       drag.previous = hit(event);
       if (drag.previous) {
-        drawPoint(drag.previous);
-        uploadPaper();
+        drawPoint(drag.previous, undefined, event.timeStamp);
+
       }
       render();
     }
@@ -196,19 +175,19 @@ async function main(): Promise<void> {
       pitch += (event.clientY - drag.y) * 0.008;
     } else {
       // Browsers may combine several hardware samples into one pointer event.
-      // Preserve those samples for curved strokes, then upload only once.
+      // Preserve sample timing and curved stroke segments for GPU deposition.
       const samples = event.getCoalescedEvents?.() ?? [];
-      let changed = false;
+
       for (const sample of samples.length ? samples : [event]) {
         const point = hit(sample);
         if (point) {
-          drawPoint(point, drag.previous);
-          changed = true;
+          drawPoint(point, drag.previous, sample.timeStamp);
+
         }
         // Leaving the sheet breaks the stroke, avoiding a bridge on reentry.
         drag.previous = point;
       }
-      if (changed) uploadPaper();
+
     }
     drag.x = event.clientX;
     drag.y = event.clientY;
@@ -263,8 +242,34 @@ async function main(): Promise<void> {
     render();
   });
   if (!stoppedRendering) {
-    status.textContent = 'Smooth paper | Round brush | Static ink';
+    status.textContent = 'Smooth paper | Round brush | Live ink · 1024 × 1024';
   }
+  function animate(now: number) {
+    const elapsed = now-lastTime; lastTime = now;
+    if (!paused && !document.hidden) {
+      frameTimes.push(elapsed); if (frameTimes.length > 3600) frameTimes.shift();
+      accumulator += Math.min(elapsed/1000, 0.1);
+      const steps = Math.min(6, Math.floor(accumulator*60));
+      accumulator -= steps/60;
+      render(steps);
+    }
+    if (!stoppedRendering) requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+  // Explicit test mode: deterministic stepping and readback for validation/captures.
+  if (new URLSearchParams(location.search).has('test')) {
+    (window as any).inkTest = {
+      benchmark: () => simulation.benchmark(),
+      hardware: adapter.info, pause: () => { paused = true; },
+      clear: () => { clearPaper(); render(); },
+      stroke: (...args: Parameters<InkSimulation['stroke']>) => simulation.stroke(...args),
+      step: async (n: number) => { for(let i=0;i<n;i++) render(1); await device.queue.onSubmittedWorkDone(); },
+      render: () => render(), read: () => simulation.read(),
+      frames: () => frameTimes.slice(),
+      resume: () => { paused = false; accumulator = 0; lastTime = performance.now(); },
+    };
+  }
+
 }
 
 main().catch(showError);

@@ -1,28 +1,29 @@
-# Milestone 1 progress — November 9, 2026
+# Milestone 1 progress — November 10, 2026
 
-## Existing foundation before this change
+Implemented on `experimental`; changes are intentionally uncommitted.
 
-- TypeScript, Vite, WebGPU, and WGSL project setup with build checking.
-- A square sheet made of two GPU-rendered triangles with perspective projection.
-- Mouse-drag rotation, arrow-key rotation, and reset view.
-- Both faces visible, responsive high-DPI canvas sizing, GPU initialization and error reporting.
-- Rendering on input/resize; no animation loop or ink simulation.
+## Completed
 
-## Paper and brush increment
-
-- One smooth ivory paper appearance and one fixed round dark brush.
-- Continuous static strokes and click dots in a 1024 × 1024 texture.
-- Perspective-aware ray picking for rotated and zoomed paper.
-- Separate drawing/rotation gestures, bounded zoom, and clear paper.
-- Reset view preserves the drawing; reload clears it.
-- Coalesced pointer samples preserve fast curved strokes, with one texture upload per input event.
+- Perspective paper canvas, drawing, rotation, zoom, reset, and clear.
+- One uniform smooth paper and a fixed soft round brush.
+- GPU deposition of water and mobile pigment, with time-scaled stroke segments.
+- Full-grid, ping-pong WGSL transport at a fixed 60 Hz simulation timestep.
+- Combined water absorption/evaporation and permanent pigment settling.
+- Rendering of mobile/settled ink and subtle wetness darkening.
+- Browser screenshots, animated examples, reproducible GPU tests, and baseline timings.
+- Test hardware identified: NVIDIA GeForce RTX 3070; AMD Ryzen 7 3700X.
 
 ## Validation
 
-- `pnpm build` passes TypeScript checking and the production build.
-- 729 projection/picking round trips passed across three aspect ratios, three yaw angles, three pitch angles, three zoom distances, and nine paper positions, including back-facing views.
-- Browser interaction and GPU rendering still need a visual check on the test hardware. These checks do not establish simulation performance or the 60 FPS target.
+`pnpm build` passes. `pnpm test:gpu` checks actual GPU state for pigment conservation, spreading, drying, nonnegative finite values, edge handling, event-sampling consistency, clear, and mouse/navigation behavior. Shader compilation and uncaptured GPU errors are checked. Browser screenshots were inspected for paper, strokes, and rotation. The prior projection/picking round-trip validation is recorded in the earlier revision of this note.
 
-## Still needed for the pitch's Milestone 1
+See [performance report](../performance/Milestone1_Baseline.md) for measured results and headless-browser limitations. The 60 FPS target is supported by this baseline on the test GPU, but should also be confirmed in a normal visible browser during the milestone demo.
 
-Ink deposition with water/pigment state, spreading, and drying remain deferred at the user's request. Confirm test hardware and collect baseline performance measurements; assess the 60 FPS target at 1024 × 1024 once the simulation exists.
+## Examples
+
+- [Drawing and drying GIF](../img/ink-stroke.gif)
+- [Magnified spreading GIF](../img/ink-spread.gif)
+- [Wet ink screenshot](../img/ink-wet.png)
+- [Rotated paper screenshot](../img/rotated-ink.png)
+
+The core implementation items from the pitch's first milestone are complete. Presentation/submission and a visible-browser demo remain user-facing course tasks. Material presets, pen variants, stroke replay, rewetting, wet-tile optimization, and PNG export remain later work.

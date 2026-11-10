@@ -7,8 +7,7 @@ struct View {
 }
 @group(0) @binding(0) var<uniform> view: View;
 
-@group(0) @binding(1) var paper: texture_2d<f32>;
-@group(0) @binding(2) var paperSampler: sampler;
+@group(0) @binding(1) var<storage, read> cells: array<vec4f>;
 struct VertexOutput {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
@@ -55,5 +54,16 @@ fn vertexMain(@builtin(vertex_index) index: u32) -> VertexOutput {
 
 @fragment
 fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-  return textureSample(paper, paperSampler, input.uv);
+  let xy = clamp(input.uv * 1024.0 - 0.5, vec2f(0), vec2f(1023));
+  let p = vec2u(xy);
+  let q = min(p + vec2u(1), vec2u(1023));
+  let f = fract(xy);
+  let state = mix(mix(cells[p.y*1024u+p.x], cells[p.y*1024u+q.x], f.x),
+                  mix(cells[q.y*1024u+p.x], cells[q.y*1024u+q.x], f.x), f.y);
+  let density = state.y + state.z;
+  let paper = vec3f(0.965, 0.949, 0.906);
+  let ink = vec3f(0.055, 0.065, 0.085);
+  let color = mix(ink, paper, exp(-density * 2.8));
+  return vec4f(color * (1.0 - 0.07 * clamp(state.x, 0.0, 1.0)), 1);
+
 }

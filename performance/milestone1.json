@@ -1,0 +1,109 @@
+{
+  "date": "2026-11-10",
+  "browser": "157.0.8103.40",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "vendor": "nvidia",
+  "architecture": "ampere",
+  "grid": [
+    1024,
+    1024
+  ],
+  "deposit": {
+    "water": 1566.0176858287305,
+    "pigment": 474.92721140771755,
+    "mobile": 466.299541240558,
+    "wet": 516,
+    "invalid": 0
+  },
+  "spread": {
+    "water": 426.4086831278546,
+    "pigment": 474.92724743670215,
+    "mobile": 52.45909512658545,
+    "wet": 2504,
+    "invalid": 0
+  },
+  "dry": {
+    "water": 0,
+    "pigment": 474.92728110431926,
+    "mobile": 0,
+    "wet": 0,
+    "invalid": 0
+  },
+  "edgeStart": {
+    "water": 391.5044209654443,
+    "pigment": 118.73180278903601,
+    "mobile": 116.57488524680957,
+    "wet": 129,
+    "invalid": 0
+  },
+  "edgeEnd": {
+    "water": 26.94200489728246,
+    "pigment": 118.73181461076092,
+    "mobile": 1.3937290198700794,
+    "wet": 709,
+    "invalid": 0
+  },
+  "mouse": {
+    "water": 16106.292225013152,
+    "pigment": 4831.887671887633,
+    "mobile": 4831.887671887633,
+    "wet": 10228,
+    "invalid": 0
+  },
+  "sampling": [
+    {
+      "water": 95679.10036356002,
+      "pigment": 28703.729352567345,
+      "mobile": 28703.729352567345,
+      "wet": 12736,
+      "invalid": 0
+    },
+    {
+      "water": 95206.18413585424,
+      "pigment": 28561.856806211174,
+      "mobile": 28561.856806211174,
+      "wet": 12736,
+      "invalid": 0
+    }
+  ],
+  "wetBefore": {
+    "water": 303813.7694874136,
+    "pigment": 92144.32484679861,
+    "mobile": 90470.39848207904,
+    "wet": 816896,
+    "invalid": 0
+  },
+  "wetAfter": {
+    "water": 57514.831935604554,
+    "pigment": 92144.32675741945,
+    "mobile": 5780.784205455886,
+    "wet": 1027968,
+    "invalid": 0
+  },
+  "simulationGPU": {
+    "samples": 120,
+    "medianMs": 0.14848,
+    "p95Ms": 0.1536
+  },
+  "simulationSubmitAndWait": {
+    "samples": 120,
+    "medianMs": 3,
+    "p95Ms": 3.9000000059604645
+  },
+  "animationFrame": {
+    "samples": 300,
+    "medianMs": 6.099999999998545,
+    "p95Ms": 6.199999999998909
+  },
+  "errors": [],
+  "sparseSimulationGPU": {
+    "samples": 120,
+    "medianMs": 0.157696,
+    "p95Ms": 0.159744
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 3070",
+    "driver": "32.0.16.1656",
+    "cpu": "AMD Ryzen 7 3700X 8-Core Processor"
+  }
+}

@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:gpu": "node tests/validate.mjs"
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.64",
+    "playwright": "^1.65.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.2"
   }
