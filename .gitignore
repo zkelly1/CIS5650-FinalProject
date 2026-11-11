@@ -84,3 +84,6 @@ Thumbs.db
 ~$*
 __pycache__/
 *.pyc
+
+# Keep the Milestone 1 presentation local until ready to publish
+/admin/Milestone-1-Presentation*

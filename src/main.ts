@@ -102,14 +102,18 @@ async function main(): Promise<void> {
 
   // 5. Input renders immediately; animation advances a fixed 60 Hz simulation.
   // Pipelines and buffers persist; the canvas texture is acquired each draw.
-  function render(steps = 0): void {
+  function render(steps = 0, frameQuery?: GPUQuerySet, resolveBuffer?: GPUBuffer, readBuffer?: GPUBuffer): void {
     if (stoppedRendering || !context) return;
     device.queue.writeBuffer(viewBuffer, 0, new Float32Array([
       canvas.width / canvas.height, yaw, pitch, distance,
     ]));
     const encoder = device.createCommandEncoder({ label: 'Paper frame' });
+    if (frameQuery) {
+      encoder.beginComputePass({ timestampWrites: { querySet: frameQuery, beginningOfPassWriteIndex: 0 } }).end();
+    }
     simulation.encode(encoder, steps);
     const pass = encoder.beginRenderPass({
+      ...(frameQuery ? { timestampWrites: { querySet: frameQuery, endOfPassWriteIndex: 1 } } : {}),
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
         clearValue: { r: 0.035, g: 0.045, b: 0.065, a: 1 },
@@ -121,6 +125,10 @@ async function main(): Promise<void> {
     pass.setBindGroup(0, bindGroups[simulation.current]);
     pass.draw(6); // Six vertex shader invocations produce two triangles.
     pass.end();
+    if (frameQuery && resolveBuffer && readBuffer) {
+      encoder.resolveQuerySet(frameQuery, 0, 2, resolveBuffer, 0);
+      encoder.copyBufferToBuffer(resolveBuffer, 0, readBuffer, 0, 16);
+    }
     device.queue.submit([encoder.finish()]);
   }
 
@@ -279,6 +287,29 @@ async function main(): Promise<void> {
   // Explicit test mode: deterministic stepping and readback for validation/captures.
   if (new URLSearchParams(location.search).has('test')) {
     (window as any).inkTest = {
+      benchmarkFrame: async () => {
+        if (!device.features.has('timestamp-query')) throw new Error('GPU timestamps unavailable');
+        paused = true;
+        const query = device.createQuerySet({ type: 'timestamp', count: 2 });
+        const resolve = device.createBuffer({ size: 16, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+        const read = device.createBuffer({ size: 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        const gpu: number[] = [], wall: number[] = [];
+        try {
+          for (let i = 0; i < 150; i++) {
+            const start = performance.now();
+            const x = .2 + .6 * (i % 60) / 60;
+            simulation.stroke(x + .01, .5, x, .5, 1 / 60);
+            render(1, query, resolve, read);
+            await device.queue.onSubmittedWorkDone();
+            const elapsed = performance.now() - start;
+            await read.mapAsync(GPUMapMode.READ);
+            const stamps = new BigUint64Array(read.getMappedRange());
+            if (i >= 30) { gpu.push(Number(stamps[1] - stamps[0]) / 1e6); wall.push(elapsed); }
+            read.unmap();
+          }
+          return { gpu, wall, canvas: [canvas.width, canvas.height] };
+        } finally { query.destroy(); resolve.destroy(); read.destroy(); }
+      },
       benchmark: () => simulation.benchmark(),
       hardware: adapter.info, pause: () => { paused = true; },
       clear: () => { clearPaper(); render(); },
