@@ -73,3 +73,14 @@ dist/
 
 # Intermediate browser capture frames
 img/frames/
+
+# Local presentation build files and draft exports
+/.presentation-build/
+/deliverables/*-Draft.pptx
+
+# Local editor, OS, and Python cache files
+.DS_Store
+Thumbs.db
+~$*
+__pycache__/
+*.pyc
