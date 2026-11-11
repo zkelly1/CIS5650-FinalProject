@@ -29,6 +29,6 @@ These results support the 60 FPS target on this hardware: measured frame interva
 
 ## Reproduce
 
-Run `pnpm dev --port 5174` and, in another terminal, `pnpm test:gpu`. Installed Google Chrome is required. Set `TEST_URL` to override the server URL. Output is `performance/milestone1.json`, example screenshots, and ignored `img/frames/` captures. Run `python tests/make-gifs.py` with Pillow installed to assemble the two GIFs. Hardware model/driver above were read from Windows; the browser reports vendor/architecture in raw test results.
+Run `pnpm dev --port 5174` and, in another terminal, `pnpm test:gpu`. Installed Google Chrome is required. Set `TEST_URL` to override the server URL. Output is `performance/milestone1.json`, example screenshots, and ignored `media/frames/` captures. Run `python tests/make-gifs.py` with Pillow installed to assemble the two GIFs. Hardware model/driver above were read from Windows; the browser reports vendor/architecture in raw test results.
 
 Captures use deterministic simulated steps. GIF labels show simulated time; drying playback is accelerated. The spreading close-up enlarges a 64 × 64 screenshot crop eightfold, intentionally showing the pixels. These are rendered simulation captures, not generated illustrations.

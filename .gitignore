@@ -72,7 +72,7 @@ node_modules/
 dist/
 
 # Intermediate browser capture frames
-img/frames/
+media/frames/
 
 # Local presentation build files and draft exports
 /.presentation-build/

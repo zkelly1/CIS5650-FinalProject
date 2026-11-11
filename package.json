@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 127.0.0.1",
+    "dev": "vite src --host 127.0.0.1",
+    "build": "tsc --project src/tsconfig.json --noEmit && vite build src --outDir ../dist --emptyOutDir",
+    "preview": "vite preview src --outDir ../dist --host 127.0.0.1",
     "test:gpu": "node tests/validate.mjs"
   },
   "devDependencies": {

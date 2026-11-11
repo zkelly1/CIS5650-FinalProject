@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const base = process.env.TEST_URL || 'http://127.0.0.1:5174';
 await mkdir('performance', {recursive:true});
-await mkdir('img/frames', {recursive:true});
+await mkdir('media/frames', {recursive:true});
 const browser = await chromium.launch({channel:'chrome', headless:true, args:['--enable-unsafe-webgpu','--disable-background-timer-throttling']});
 const page = await browser.newPage({viewport:{width:1100,height:900},deviceScaleFactor:1});
 const errors = [];
@@ -33,7 +33,7 @@ try {
   await page.mouse.move(cx-70,cy);await page.mouse.down();await page.mouse.move(cx+70,cy,{steps:25});await page.mouse.up();
   const mouse=await page.evaluate(()=>window.inkTest.read());assert(mouse.pigment>0);
   await page.locator('#zoom-in').click();await page.locator('#canvas').focus();await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowDown');
-  await page.screenshot({path:'img/rotated-ink.png'});
+  await page.screenshot({path:'media/rotated-ink.png'});
   await page.locator('#reset').click();
   assert.equal((await page.evaluate(()=>window.inkTest.read())).pigment,mouse.pigment);
   const sampling=[];
@@ -49,19 +49,19 @@ try {
   await page.evaluate(()=>window.inkTest.clear());
   for(let f=0;f<61;f++){
     await page.evaluate(async({points,f})=>{const t=window.inkTest;for(let j=f*2;j<Math.min(points.length,f*2+2);j++){const p=points[j],q=(j===0||j===91)?p:points[j-1];t.stroke(p[0],p[1],q[0],q[1],1/30);}await t.step(4);},{points,f});
-    await page.locator('#canvas').screenshot({path:`img/frames/stroke-${String(f).padStart(3,'0')}.png`});
+    await page.locator('#canvas').screenshot({path:`media/frames/stroke-${String(f).padStart(3,'0')}.png`});
   }
-  await page.screenshot({path:'img/ink-wet.png'});
+  await page.screenshot({path:'media/ink-wet.png'});
   for(let f=61;f<91;f++){
     await page.evaluate(()=>window.inkTest.step(20));
-    await page.locator('#canvas').screenshot({path:`img/frames/stroke-${String(f).padStart(3,'0')}.png`});
+    await page.locator('#canvas').screenshot({path:`media/frames/stroke-${String(f).padStart(3,'0')}.png`});
   }
-  await page.screenshot({path:'img/ink-dry.png'});
+  await page.screenshot({path:'media/ink-dry.png'});
   // Close-up crop of a wet dot: captures are actual GPU output at fixed steps.
   await page.evaluate(async()=>{const t=window.inkTest;t.clear();t.stroke(.5,.5,.5,.5,.1);await t.step(1);});
   const crop={x:cx-65,y:cy-65,width:130,height:130};
   for(let f=0;f<61;f++){
-    await page.screenshot({path:`img/frames/spread-${String(f).padStart(3,'0')}.png`,clip:crop});
+    await page.screenshot({path:`media/frames/spread-${String(f).padStart(3,'0')}.png`,clip:crop});
     await page.evaluate(()=>window.inkTest.step(10));
   }
   const dryTiming=await page.evaluate(()=>window.inkTest.benchmark());

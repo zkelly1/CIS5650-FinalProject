@@ -21,9 +21,9 @@ See [performance report](../performance/Milestone1_Baseline.md) for measured res
 
 ## Examples
 
-- [Drawing and drying GIF](../img/ink-stroke.gif)
-- [Magnified spreading GIF](../img/ink-spread.gif)
-- [Wet ink screenshot](../img/ink-wet.png)
-- [Rotated paper screenshot](../img/rotated-ink.png)
+- [Drawing and drying GIF](../media/ink-stroke.gif)
+- [Magnified spreading GIF](../media/ink-spread.gif)
+- [Wet ink screenshot](../media/ink-wet.png)
+- [Rotated paper screenshot](../media/rotated-ink.png)
 
 The core implementation items from the pitch's first milestone are complete. Presentation/submission and a visible-browser demo remain user-facing course tasks. Material presets, pen variants, stroke replay, rewetting, wet-tile optimization, and PNG export remain later work.

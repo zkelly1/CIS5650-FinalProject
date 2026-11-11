@@ -8,15 +8,15 @@ See the [project pitch](admin/WebGPU_Calligraphy_Pitch.md) for the proposed feat
 
 ```text
 admin/        Project pitch, milestone writeups, and course documents
-src/          TypeScript application code and WGSL shaders
-tests/       Simulation correctness tests and stroke replay fixtures
+src/          HTML entry point, TypeScript configuration, application code, and WGSL shaders
+tests/        Simulation correctness tests, capture utilities, and stroke replay fixtures
 performance/  Benchmark scripts, timing data, and analysis
-img/          Screenshots, comparison images, and demo GIFs
-public/       Static assets served by the application
-scripts/      Development and data-processing utilities
+media/        Screenshots, comparison images, and demo GIFs
 ```
 
 This layout follows the source, test, image, and performance organization used in our earlier CIS 5650 projects.
+
+The root keeps `package.json`, `pnpm-lock.yaml`, and `pnpm-workspace.yaml` together for dependency management. Application files live in `src`; benchmark JSON belongs in `performance`. Generated presentation builds and raw capture frames are ignored by Git.
 
 ## Run the first experiment
 
@@ -70,9 +70,9 @@ Set `TEST_URL` to use another server URL. The browser suite launches headless Ch
 
 See [baseline measurements](performance/Milestone1_Baseline.md) and [raw results](performance/milestone1.json). GIFs show actual GPU-rendered output; timestamps indicate simulated time, and GIF playback is compressed during drying.
 
-![Drawing and drying](img/ink-stroke.gif)
+![Drawing and drying](media/ink-stroke.gif)
 
-![Magnified ink spreading and drying](img/ink-spread.gif)
+![Magnified ink spreading and drying](media/ink-spread.gif)
 
 ## Read the code in this order
 
