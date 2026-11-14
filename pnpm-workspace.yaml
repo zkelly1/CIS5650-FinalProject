@@ -1,0 +1,3 @@
+# Vite uses esbuild for development and production transforms.
+allowBuilds:
+  esbuild: true
