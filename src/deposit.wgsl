@@ -1,6 +1,8 @@
+// 48 bytes per cell; optical quantities are extensive (pigment-mass weighted).
+struct Cell { state: vec4f, mobile: vec4f, settled: vec4f }
 // params.x = time scale, params.y = brush core radius (px), params.z = water load.
-struct Segment { ends: vec4f, params: vec4f }
-@group(0) @binding(0) var<storage, read_write> cells: array<vec4f>;
+struct Segment { ends: vec4f, params: vec4f, absorption: vec4f }
+@group(0) @binding(0) var<storage, read_write> cells: array<Cell>;
 @group(0) @binding(1) var<uniform> stroke: Segment;
 @compute @workgroup_size(8, 8)
 fn deposit(@builtin(global_invocation_id) id: vec3u) {
@@ -18,5 +20,7 @@ fn deposit(@builtin(global_invocation_id) id: vec3u) {
   // Normalize a swept capsule by its length: equal time deposits equal mass.
   let amount = footprint * stroke.params.x / (1.0 + length(ab) / 16.0);
   let i = xy.y * 1024u + xy.x;
-  cells[i] += vec4f(amount * stroke.params.z, amount * 1.5, 0, 0);
+  let mass = amount * 1.5;
+  cells[i].state += vec4f(amount * stroke.params.z, mass, 0, 0);
+  cells[i].mobile += vec4f(stroke.absorption.rgb * mass, 0);
 }

@@ -20,6 +20,7 @@
           <button id="clear" type="button">Clear paper</button>
         </div>
       </header>
+      <div class="settings">
       <section class="sliders" aria-label="Ink and paper parameters">
         <label title="How fast water spreads between neighbouring cells. Higher = wider bleed.">
           <span>Diffusion</span>
@@ -53,6 +54,32 @@
         </label>
         <button id="reset-sliders" type="button">Reset sliders</button>
       </section>
+      <section class="color-picker" aria-label="Ink color">
+        <div class="color-plane">
+          <div id="color-field" role="slider" tabindex="0" aria-label="Ink saturation and brightness; use arrow keys" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+            <span id="color-cursor"></span>
+          </div>
+          <input id="color-hue" type="range" min="0" max="359" value="0" aria-label="Ink hue" />
+        </div>
+        <div class="color-values">
+          <div class="color-heading"><h2>Ink Color</h2><span id="color-preview" role="img"></span></div>
+          <label class="hex-label" for="color-hex">HEX <input id="color-hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-describedby="color-error" /></label>
+          <div class="rgb-values">
+            <label>R<input id="color-r" type="number" min="0" max="255" step="1" aria-label="Red" /></label>
+            <label>G<input id="color-g" type="number" min="0" max="255" step="1" aria-label="Green" /></label>
+            <label>B<input id="color-b" type="number" min="0" max="255" step="1" aria-label="Blue" /></label>
+          </div>
+          <div class="ink-swatches" aria-label="Quick ink colors">
+            <button type="button" data-ink="#16bfe8" style="--ink:#16bfe8" aria-label="Cyan ink"></button>
+            <button type="button" data-ink="#ed32a0" style="--ink:#ed32a0" aria-label="Magenta ink"></button>
+            <button type="button" data-ink="#ffe52b" style="--ink:#ffe52b" aria-label="Yellow ink"></button>
+            <button type="button" data-ink="#e85b36" style="--ink:#e85b36" aria-label="Vermilion ink"></button>
+            <button type="button" data-ink="#0e1116" style="--ink:#0e1116" aria-label="Black ink"></button>
+          </div>
+          <p id="color-error" aria-live="polite"></p>
+        </div>
+      </section>
+      </div>
       <canvas id="canvas" aria-label="Smooth paper. Drag to draw. Shift-drag or right-drag to rotate. Scroll to zoom. Arrow keys rotate; plus and minus zoom; R resets the view." tabindex="0"></canvas>
       <footer>
         <span id="status" role="status">Initializing WebGPU…</span>

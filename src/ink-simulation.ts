@@ -1,3 +1,4 @@
+import { absorptionFromHex } from './ink-color';
 import depositCode from './deposit.wgsl?raw';
 import simulateCode from './simulate.wgsl?raw';
 
@@ -63,11 +64,13 @@ export class InkSimulation {
   private simulate!: GPUComputePipeline;
   private groups: GPUBindGroup[] = [];
   private pending: number[][] = [];
+  private absorption = absorptionFromHex('#0e1116');
+  setColor(hex: string) { this.absorption = absorptionFromHex(hex); }
   private uniforms: GPUBuffer[] = [];
   private paramBuffer: GPUBuffer;
   private fiberBuffer: GPUBuffer;
   constructor(readonly device: GPUDevice) {
-    this.buffers = [0, 1].map(() => device.createBuffer({ size: 1024 * 1024 * 16,
+    this.buffers = [0, 1].map(() => device.createBuffer({ size: 1024 * 1024 * 48,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
     this.paramBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.fiberBuffer = device.createBuffer({ size: 1024 * 1024 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
@@ -98,12 +101,12 @@ export class InkSimulation {
     ] }));
   }
   stroke(x: number, y: number, px = x, py = y, seconds = 1/60) {
-    this.pending.push([px*1024, py*1024, x*1024, y*1024, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, 0]);
+    this.pending.push([px*1024, py*1024, x*1024, y*1024, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, 0, ...this.absorption, 0]);
   }
   encode(encoder: GPUCommandEncoder, steps: number, querySet?: GPUQuerySet) {
     for (let i = 0; i < this.pending.length; i++) {
       const data = this.pending[i];
-      const buffer = this.uniforms[i] ??= this.device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const buffer = this.uniforms[i] ??= this.device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
       this.device.queue.writeBuffer(buffer, 0, new Float32Array(data));
       const pass = encoder.beginComputePass();
       pass.setPipeline(this.deposit);
@@ -151,19 +154,25 @@ export class InkSimulation {
     query?.destroy(); resolve?.destroy(); read?.destroy();
     return { gpu, wall };
   }
-  async read() {
-    const buffer = this.device.createBuffer({ size: 1024*1024*16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  async read(sample?: { x: number; y: number }) {
+    const buffer = this.device.createBuffer({ size: 1024*1024*48, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     const encoder = this.device.createCommandEncoder();
     encoder.copyBufferToBuffer(this.buffers[this.current], 0, buffer, 0, buffer.size);
     this.device.queue.submit([encoder.finish()]);
     await buffer.mapAsync(GPUMapMode.READ);
     const data = new Float32Array(buffer.getMappedRange().slice(0)); buffer.unmap(); buffer.destroy();
+    if (sample) {
+      const i = (Math.max(0, Math.min(1023, Math.floor(sample.y*1024)))*1024 + Math.max(0, Math.min(1023, Math.floor(sample.x*1024))))*12;
+      return { state: Array.from(data.slice(i,i+4)), mobileAbsorption: Array.from(data.slice(i+4,i+7)), settledAbsorption: Array.from(data.slice(i+8,i+11)) };
+    }
+    const opticalMass = [0,0,0];
     let water = 0, pigment = 0, mobile = 0, wet = 0, invalid = 0;
-    for (let i = 0; i < data.length; i += 4) {
+    for (let i = 0; i < data.length; i += 12) {
       water += data[i]; mobile += data[i+1]; pigment += data[i+1]+data[i+2];
       if (data[i] > 0.001) wet++;
-      for (let j = 0; j < 3; j++) if (!Number.isFinite(data[i+j]) || data[i+j] < 0) invalid++;
+      for(let c=0;c<3;c++) opticalMass[c] += data[i+4+c]+data[i+8+c];
+      for (let j = 0; j < 12; j++) if (!Number.isFinite(data[i+j]) || data[i+j] < 0) invalid++;
     }
-    return { water, pigment, mobile, wet, invalid };
+    return { water, pigment, mobile, wet, invalid, opticalMass };
   }
 }

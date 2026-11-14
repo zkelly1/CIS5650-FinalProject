@@ -1,3 +1,4 @@
+import { initColorPicker } from './color-picker';
 import './style.css';
 import { InkSimulation, DEFAULT_PARAMS, type InkParams } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
   });
   const simulation = new InkSimulation(device);
   await simulation.init();
+  const picker = initColorPicker(hex => simulation.setColor(hex));
   const bindGroups = simulation.buffers.map(buffer => device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0), entries: [
       { binding: 0, resource: { buffer: viewBuffer } },
@@ -316,6 +318,8 @@ async function main(): Promise<void> {
       stroke: (...args: Parameters<InkSimulation['stroke']>) => simulation.stroke(...args),
       step: async (n: number) => { for(let i=0;i<n;i++) render(1); await device.queue.onSubmittedWorkDone(); },
       render: () => render(), read: () => simulation.read(),
+      sample: (x: number, y: number) => simulation.read({x,y}),
+      color: (hex: string) => picker.setHex(hex),
       frames: () => frameTimes.slice(),
       resume: () => { paused = false; accumulator = 0; lastTime = performance.now(); },
     };
