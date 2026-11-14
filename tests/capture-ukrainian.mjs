@@ -1,13 +1,13 @@
 import {demoLabel} from './demo-label.mjs';
 import {chromium} from 'playwright';
 import {mkdir} from 'node:fs/promises';
-await mkdir('media/frames/sunflower-labeled-final',{recursive:true});
+await mkdir('media/frames/sunflower-reference',{recursive:true});
 const b=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
 const p=await b.newPage({viewport:{width:1280,height:900}});
 await p.goto(process.env.TEST_URL||'http://127.0.0.1:5177/?test');await p.waitForFunction(()=>window.inkTest);
 await p.evaluate(()=>{inkTest.pause();inkTest.clear()});
 let frame=0;
-async function snap(){await p.evaluate(()=>inkTest.step(2));await p.screenshot({path:'media/frames/sunflower-labeled-final/'+String(frame++).padStart(4,'0')+'.png'});}
+async function snap(){await p.evaluate(()=>inkTest.step(2));await p.screenshot({path:'media/frames/sunflower-reference/'+String(frame++).padStart(4,'0')+'.png'});}
 async function param(k,v){await p.locator('[data-param="'+k+'"]').fill(String(v));}
 await param('diffusion',.06);await param('roughness',.15);await param('waterLoad',2);await param('absorption',2.2);await param('settling',3);
 await p.locator('#zoom-in').click();
@@ -44,6 +44,8 @@ await curve([.49,.57],[.57,.5],[.62,.53],4,18);
 await curve([.62,.53],[.57,.58],[.49,.57],3,18);
 // Copperplate-inspired Cyrillic: fine upstrokes, shaded downstrokes and open flourishes.
 minimumRadius=1;
+await curve([.065,.755],[.01,.64],[.12,.65],1,24);
+await curve([.12,.65],[.23,.65],[.15,.72],1,24);
 for(const [a,c,z,w] of [
 [[.13,.735],[.075,.685],[.065,.755],2],
 [[.065,.755],[.06,.835],[.15,.79],2],

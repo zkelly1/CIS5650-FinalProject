@@ -1,13 +1,13 @@
 import {demoLabel} from './demo-label.mjs';
 import {chromium} from 'playwright';
 import {mkdir} from 'node:fs/promises';
-await mkdir('media/frames/orchid-labeled-final',{recursive:true});
+await mkdir('media/frames/orchid-reference',{recursive:true});
 const b=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
 const p=await b.newPage({viewport:{width:1280,height:900}});
 await p.goto(process.env.TEST_URL||'http://127.0.0.1:5177/?test');await p.waitForFunction(()=>window.inkTest);
 await p.evaluate(()=>{inkTest.pause();inkTest.clear()});
 let frame=0;
-async function snap(){await p.evaluate(()=>inkTest.step(2));await p.screenshot({path:'media/frames/orchid-labeled-final/'+String(frame++).padStart(4,'0')+'.png'});}
+async function snap(){await p.evaluate(()=>inkTest.step(2));await p.screenshot({path:'media/frames/orchid-reference/'+String(frame++).padStart(4,'0')+'.png'});}
 async function param(k,v){await p.locator('[data-param="'+k+'"]').fill(String(v));}
 await param('diffusion',.22);await param('roughness',.9);await param('waterLoad',8);await param('absorption',.4);await param('settling',.4);
 await p.locator('#zoom-in').click();
@@ -35,17 +35,17 @@ await curve([.36,.88],[x-.08,y+.16],[x,y],3,30);
 for(const [dx,dy,w] of [[-.10,-.055,10],[.09,-.07,11],[.11,.025,9],[-.06,.065,8],[.025,.10,7]])
 await curve([x,y],[x+dx*.25,y+dy*.15],[x+dx,y+dy],w,18);
 }
-// Handwritten èŠ± in the open upper-left corner, using the same ink simulation.
+// 行书-style 花: sloping crown, linked turns and tapered exits.
 for(const [a,c,z,w] of [
-[[.075,.12],[.15,.115],[.23,.115],4],
-[[.12,.085],[.12,.12],[.115,.15],4],
-[[.19,.085],[.19,.12],[.18,.15],4],
-[[.14,.16],[.12,.19],[.08,.215],4],
-[[.115,.19],[.113,.225],[.11,.27],4],
-[[.225,.17],[.20,.20],[.16,.22],4],
-[[.165,.16],[.16,.205],[.165,.25],4],
-[[.165,.25],[.20,.267],[.23,.245],4],
-[[.23,.245],[.232,.23],[.23,.225],3]
+[[.07,.13],[.14,.105],[.235,.11],4],
+[[.12,.08],[.13,.13],[.11,.15],5],
+[[.19,.08],[.19,.14],[.16,.155],5],
+[[.16,.155],[.12,.18],[.08,.215],3],
+[[.12,.18],[.108,.22],[.107,.27],5],
+[[.215,.16],[.2,.2],[.155,.225],4],
+[[.155,.225],[.16,.2],[.168,.16],2],
+[[.168,.16],[.151,.235],[.166,.26],5],
+[[.166,.26],[.23,.29],[.239,.225],4]
 ]) await curve(a,c,z,w,18);
 await p.locator('h1').click();await p.screenshot({path:'media/orchid-interface.png'});
 for(let i=0;i<16;i++)await snap();
