@@ -27,8 +27,8 @@
           <input type="range" data-param="diffusion" min="0.02" max="0.24" step="0.01" />
           <output></output>
         </label>
-        <label title="How quickly the paper soaks up water. Higher = bleeding stops sooner.">
-          <span>Absorption</span>
+        <label title="Effective water loss to drying. Higher = bleeding stops sooner.">
+          <span>Drying</span>
           <input type="range" data-param="absorption" min="0.1" max="3" step="0.05" />
           <output></output>
         </label>
@@ -50,6 +50,11 @@
         <label title="Paper fibre variation. 0 = perfectly uniform, 1 = fibrous, uneven bleeding.">
           <span>Paper roughness</span>
           <input type="range" data-param="roughness" min="0" max="1" step="0.05" />
+          <output></output>
+        </label>
+        <label title="Sheet thickness in millimeters. Changing this starts a fresh sheet. Thinner paper lets ink reach the back sooner.">
+          <span>Thickness (mm)<small style="display:block;font-size:10px;opacity:.75">Changes clear paper</small></span>
+          <input type="range" data-param="thickness" min="0.05" max="0.8" step="0.01" />
           <output></output>
         </label>
         <button id="reset-sliders" type="button">Reset sliders</button>

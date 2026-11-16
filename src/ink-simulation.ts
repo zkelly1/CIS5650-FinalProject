@@ -1,16 +1,18 @@
+import { GRID_SIZE, DEPTH_LAYERS, shaderSource } from './gpu-grid';
 import { absorptionFromHex } from './ink-color';
 import depositCode from './deposit.wgsl?raw';
 import simulateCode from './simulate.wgsl?raw';
 
 export interface InkParams {
   diffusion: number;  // water spread per step, max stable ~0.24
-  absorption: number; // paper soaks up water (1/s)
+  absorption: number; // effective drying rate (1/s)
   settling: number;   // mobile pigment fixes to the paper (1/s)
   waterLoad: number;  // water deposited per unit of brush contact
   radius: number;     // brush core radius in grid cells
+  thickness: number; // physical sheet thickness in millimeters
   roughness: number;  // 0 = uniform paper, 1 = strongly fibrous
 }
-export const DEFAULT_PARAMS: InkParams = { diffusion: 0.18, absorption: 0.65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0 };
+export const DEFAULT_PARAMS: InkParams = { diffusion: 0.18, absorption: 0.65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0, thickness: 0.15 };
 
 // define some fiber parameters
 //length of fiber strands in long direction (length)
@@ -56,7 +58,7 @@ function makeFiberMap(n: number): Float32Array<ArrayBuffer> {
 }
 
 export class InkSimulation {
-  readonly size = 1024;
+  readonly size = GRID_SIZE;
   readonly buffers: GPUBuffer[];
   current = 0;
   params: InkParams = { ...DEFAULT_PARAMS };
@@ -70,23 +72,30 @@ export class InkSimulation {
   private paramBuffer: GPUBuffer;
   private fiberBuffer: GPUBuffer;
   constructor(readonly device: GPUDevice) {
-    this.buffers = [0, 1].map(() => device.createBuffer({ size: 1024 * 1024 * 48,
+    this.buffers = [0, 1].map(() => device.createBuffer({ size: GRID_SIZE * GRID_SIZE * DEPTH_LAYERS * 48,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
-    this.paramBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    this.fiberBuffer = device.createBuffer({ size: 1024 * 1024 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    device.queue.writeBuffer(this.fiberBuffer, 0, makeFiberMap(1024));
+    this.paramBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    this.fiberBuffer = device.createBuffer({ size: GRID_SIZE * GRID_SIZE * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(this.fiberBuffer, 0, makeFiberMap(GRID_SIZE));
     this.setParams({});
   }
   /** Updates any subset of the parameters; sim parameters take effect on the next step. */
   setParams(change: Partial<InkParams>) {
+    if (change.thickness !== undefined && change.thickness !== this.params.thickness) this.clear();
     this.params = { ...this.params, ...change };
     const p = this.params;
-    this.device.queue.writeBuffer(this.paramBuffer, 0, new Float32Array([p.diffusion, p.absorption, p.settling, p.roughness]));
+    this.device.queue.writeBuffer(this.paramBuffer, 0, new Float32Array([p.diffusion, p.absorption, p.settling, p.roughness, this.verticalRate(), 1 / this.substeps(), 0, 0]));
   }
+  // Effective moisture diffusivity (mm^2/s), illustrative rather than calibrated.
+  // The 1/dz^2 factor makes thicker paper take longer to penetrate.
+  private verticalRate() { return 0.0012 / 60 / (this.params.thickness / DEPTH_LAYERS) ** 2; }
+  // Four lateral neighbors each <= .24 plus two depth neighbors.
+  // Keep the outgoing fraction below one for positivity and conservation.
+  private substeps() { return Math.max(1, Math.ceil((0.96 + 2 * this.verticalRate()) / 0.95)); }
   async init() {
     const pipelines = [];
     for (const [code, entryPoint] of [[depositCode, 'deposit'], [simulateCode, 'simulate']]) {
-      const module = this.device.createShaderModule({ code });
+      const module = this.device.createShaderModule({ code: shaderSource(code) });
       const info = await module.getCompilationInfo();
       const errors = info.messages.filter(m => m.type === 'error');
       if (errors.length) throw Error(errors.map(m => m.message).join('\n'));
@@ -100,8 +109,8 @@ export class InkSimulation {
       { binding: 3, resource: { buffer: this.fiberBuffer } },
     ] }));
   }
-  stroke(x: number, y: number, px = x, py = y, seconds = 1/60) {
-    this.pending.push([px*1024, py*1024, x*1024, y*1024, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, 0, ...this.absorption, 0]);
+  stroke(x: number, y: number, px = x, py = y, seconds = 1/60, layer = 0) {
+    this.pending.push([px*GRID_SIZE, py*GRID_SIZE, x*GRID_SIZE, y*GRID_SIZE, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, Math.max(0, Math.min(DEPTH_LAYERS-1, Math.round(layer))), ...this.absorption, 0]);
   }
   encode(encoder: GPUCommandEncoder, steps: number, querySet?: GPUQuerySet) {
     for (let i = 0; i < this.pending.length; i++) {
@@ -118,10 +127,11 @@ export class InkSimulation {
       pass.end();
     }
     this.pending = [];
-    for (let i = 0; i < steps; i++) {
-      const pass = encoder.beginComputePass(querySet ? { timestampWrites: { querySet, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 } } : {});
+    const count = steps * this.substeps();
+    for (let i = 0; i < count; i++) {
+      const pass = encoder.beginComputePass(querySet && (i === 0 || i === count-1) ? { timestampWrites: { querySet, ...(i === 0 ? { beginningOfPassWriteIndex: 0 } : {}), ...(i === count-1 ? { endOfPassWriteIndex: 1 } : {}) } } : {});
       pass.setPipeline(this.simulate); pass.setBindGroup(0, this.groups[this.current]);
-      pass.dispatchWorkgroups(128, 128); pass.end(); this.current = 1-this.current;
+      pass.dispatchWorkgroups(GRID_SIZE/8, GRID_SIZE/8, DEPTH_LAYERS); pass.end(); this.current = 1-this.current;
     }
   }
   clear() {
@@ -154,25 +164,28 @@ export class InkSimulation {
     query?.destroy(); resolve?.destroy(); read?.destroy();
     return { gpu, wall };
   }
-  async read(sample?: { x: number; y: number }) {
-    const buffer = this.device.createBuffer({ size: 1024*1024*48, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  async read(sample?: { x: number; y: number; layer?: number }) {
+    const buffer = this.device.createBuffer({ size: GRID_SIZE*GRID_SIZE*DEPTH_LAYERS*48, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
     const encoder = this.device.createCommandEncoder();
     encoder.copyBufferToBuffer(this.buffers[this.current], 0, buffer, 0, buffer.size);
     this.device.queue.submit([encoder.finish()]);
     await buffer.mapAsync(GPUMapMode.READ);
     const data = new Float32Array(buffer.getMappedRange().slice(0)); buffer.unmap(); buffer.destroy();
     if (sample) {
-      const i = (Math.max(0, Math.min(1023, Math.floor(sample.y*1024)))*1024 + Math.max(0, Math.min(1023, Math.floor(sample.x*1024))))*12;
+      const i = (Math.max(0, Math.min(GRID_SIZE-1, Math.floor(sample.y*GRID_SIZE)))*GRID_SIZE + Math.max(0, Math.min(GRID_SIZE-1, Math.floor(sample.x*GRID_SIZE))) + Math.max(0, Math.min(DEPTH_LAYERS-1, sample.layer ?? 0))*GRID_SIZE*GRID_SIZE)*12;
       return { state: Array.from(data.slice(i,i+4)), mobileAbsorption: Array.from(data.slice(i+4,i+7)), settledAbsorption: Array.from(data.slice(i+8,i+11)) };
     }
     const opticalMass = [0,0,0];
+    const layers = Array.from({length: DEPTH_LAYERS}, () => ({water: 0, pigment: 0}));
     let water = 0, pigment = 0, mobile = 0, wet = 0, invalid = 0;
     for (let i = 0; i < data.length; i += 12) {
+      layers[Math.floor(i / (GRID_SIZE*GRID_SIZE*12))].water += data[i];
+      layers[Math.floor(i / (GRID_SIZE*GRID_SIZE*12))].pigment += data[i+1]+data[i+2];
       water += data[i]; mobile += data[i+1]; pigment += data[i+1]+data[i+2];
       if (data[i] > 0.001) wet++;
       for(let c=0;c<3;c++) opticalMass[c] += data[i+4+c]+data[i+8+c];
       for (let j = 0; j < 12; j++) if (!Number.isFinite(data[i+j]) || data[i+j] < 0) invalid++;
     }
-    return { water, pigment, mobile, wet, invalid, opticalMass };
+    return { water, pigment, mobile, wet, invalid, opticalMass, layers };
   }
 }

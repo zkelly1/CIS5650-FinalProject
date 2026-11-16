@@ -1,3 +1,4 @@
+import { shaderSource } from './gpu-grid';
 import { initColorPicker } from './color-picker';
 import './style.css';
 import { InkSimulation, DEFAULT_PARAMS, type InkParams } from './ink-simulation';
@@ -64,8 +65,8 @@ async function main(): Promise<void> {
   const format = navigator.gpu.getPreferredCanvasFormat();
   context.configure({ device, format, alphaMode: 'opaque' });
 
-  // 3. Compile the shader and define how the GPU draws our two triangles.
-  const shader = device.createShaderModule({ label: 'Paper shaders', code: shaderCode });
+  // 3. Compile the shader for the six faces of the paper slab.
+  const shader = device.createShaderModule({ label: 'Paper shaders', code: shaderSource(shaderCode) });
   const compilation = await shader.getCompilationInfo();
   const errors = compilation.messages.filter((message) => message.type === 'error');
   if (errors.length) throw new Error(errors.map((error) => `WGSL line ${error.lineNum}: ${error.message}`).join('\n'));
@@ -74,14 +75,15 @@ async function main(): Promise<void> {
     layout: 'auto',
     vertex: { module: shader, entryPoint: 'vertexMain' },
     fragment: { module: shader, entryPoint: 'fragmentMain', targets: [{ format }] },
-    // Both sides stay visible when the paper rotates away from the camera.
-    primitive: { topology: 'triangle-list', cullMode: 'none' },
+    // Closed cuboid: cull inward faces and resolve visibility with depth.
+    primitive: { topology: 'triangle-list', cullMode: 'back' },
+    depthStencil: { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' },
   });
 
   // 4. A uniform buffer carries the aspect ratio and angles into the shader.
   const viewBuffer = device.createBuffer({
     label: 'View parameters',
-    size: 16, // Four float32 values; matches the WGSL View struct exactly.
+    size: 32, // Camera and physical-sheet display dimensions.
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   const simulation = new InkSimulation(device);
@@ -101,13 +103,14 @@ async function main(): Promise<void> {
   let yaw = 0;
   let pitch = 0;
   let distance = 4;
+  let depthTexture: GPUTexture;
 
   // 5. Input renders immediately; animation advances a fixed 60 Hz simulation.
   // Pipelines and buffers persist; the canvas texture is acquired each draw.
   function render(steps = 0, frameQuery?: GPUQuerySet, resolveBuffer?: GPUBuffer, readBuffer?: GPUBuffer): void {
-    if (stoppedRendering || !context) return;
+    if (stoppedRendering || !context || !depthTexture) return;
     device.queue.writeBuffer(viewBuffer, 0, new Float32Array([
-      canvas.width / canvas.height, yaw, pitch, distance,
+      canvas.width / canvas.height, yaw, pitch, distance, simulation.params.thickness * 0.1, 0, 0, 0,
     ]));
     const encoder = device.createCommandEncoder({ label: 'Paper frame' });
     if (frameQuery) {
@@ -116,6 +119,7 @@ async function main(): Promise<void> {
     simulation.encode(encoder, steps);
     const pass = encoder.beginRenderPass({
       ...(frameQuery ? { timestampWrites: { querySet: frameQuery, endOfPassWriteIndex: 1 } } : {}),
+      depthStencilAttachment: { view: depthTexture.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' },
       colorAttachments: [{
         view: context.getCurrentTexture().createView(),
         clearValue: { r: 0.035, g: 0.045, b: 0.065, a: 1 },
@@ -125,7 +129,7 @@ async function main(): Promise<void> {
     });
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroups[simulation.current]);
-    pass.draw(6); // Six vertex shader invocations produce two triangles.
+    pass.draw(36); // Six closed faces, two triangles per face.
     pass.end();
     if (frameQuery && resolveBuffer && readBuffer) {
       encoder.resolveQuerySet(frameQuery, 0, 2, resolveBuffer, 0);
@@ -134,12 +138,14 @@ async function main(): Promise<void> {
     device.queue.submit([encoder.finish()]);
   }
 
-  // Display resolution is independent of the 1024-square simulation grid.
+  // Display resolution is independent of the layered simulation grid.
   const resizeObserver = new ResizeObserver(() => {
     const ratio = window.devicePixelRatio || 1;
     const limit = device.limits.maxTextureDimension2D;
     canvas.width = Math.max(1, Math.min(limit, Math.round(canvas.clientWidth * ratio)));
     canvas.height = Math.max(1, Math.min(limit, Math.round(canvas.clientHeight * ratio)));
+    depthTexture?.destroy();
+    depthTexture = device.createTexture({size: [canvas.width, canvas.height], format: 'depth24plus', usage: GPUTextureUsage.RENDER_ATTACHMENT});
     render();
   });
   resizeObserver.observe(canvas);
@@ -152,12 +158,13 @@ async function main(): Promise<void> {
     return paperPoint(
       2 * (event.clientX - rect.left - canvas.clientLeft) / canvas.clientWidth - 1,
       1 - 2 * (event.clientY - rect.top - canvas.clientTop) / canvas.clientHeight,
-      canvas.width / canvas.height, yaw, pitch, distance,
+      canvas.width / canvas.height, yaw, pitch, distance, simulation.params.thickness * 0.1,
     );
   }
   let sampleTime = 0;
   function drawPoint(point: Point, previous?: Point, time = performance.now()): void {
-    simulation.stroke(point.x, point.y, previous?.x, previous?.y, previous ? (time-sampleTime)/1000 : 1/60);
+    if (previous?.layer !== point.layer) previous = undefined;
+    simulation.stroke(point.x, point.y, previous?.x, previous?.y, previous ? (time-sampleTime)/1000 : 1/60, point.layer);
     sampleTime = time;
   }
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
@@ -272,7 +279,7 @@ async function main(): Promise<void> {
   });
   syncSliders();
   if (!stoppedRendering) {
-    status.textContent = 'Smooth paper | Round brush | Live ink · 1024 × 1024';
+    status.textContent = '3D paper | 512 x 512 x 8 layers | Edges enlarged 10x for inspection';
   }
   function animate(now: number) {
     const elapsed = now-lastTime; lastTime = now;
@@ -318,7 +325,9 @@ async function main(): Promise<void> {
       stroke: (...args: Parameters<InkSimulation['stroke']>) => simulation.stroke(...args),
       step: async (n: number) => { for(let i=0;i<n;i++) render(1); await device.queue.onSubmittedWorkDone(); },
       render: () => render(), read: () => simulation.read(),
-      sample: (x: number, y: number) => simulation.read({x,y}),
+      sample: (x: number, y: number, layer = 0) => simulation.read({x,y,layer}),
+      view: (y: number, p = 0, d = 4) => { yaw=y; pitch=p; distance=d; render(); },
+      params: (p: Partial<InkParams>) => { simulation.setParams(p); syncSliders(); render(); },
       color: (hex: string) => picker.setHex(hex),
       frames: () => frameTimes.slice(),
       resume: () => { paused = false; accumulator = 0; lastTime = performance.now(); },
