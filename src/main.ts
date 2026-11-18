@@ -6,6 +6,8 @@ import { InkSimulation, type InkParams } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
 import shaderCode from './paper.wgsl?raw';
 import { DEFAULT_PAPER, PAPER_NAMES, loadPaper, type Paper } from './papers';
+import { BristleBrush } from './bristle-brush'; // BRISTLE:
+import { installBristleUI } from './bristle-ui'; // BRISTLE:
 
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -96,6 +98,9 @@ async function main(): Promise<void> {
   });
   const simulation = new InkSimulation(device);
   await simulation.init();
+  // Bristle brush: an alternative brush tip made of individual hairs.
+  const bristles = new BristleBrush(device, simulation); await bristles.init();
+  let useBristles = false;
   const picker = initColorPicker(hex => simulation.setColor(hex));
   // The whole sheet maps onto the paper texture once, with linear filtering.
   const paperSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
@@ -112,7 +117,7 @@ async function main(): Promise<void> {
     }));
   }
   let bindGroups = makeBindGroups();
-  function clearPaper() { simulation.clear(); }
+  function clearPaper() { simulation.clear(); bristles.clear(); }
   let paused = false;
   let accumulator = 0;
   let lastTime = performance.now();
@@ -133,6 +138,7 @@ async function main(): Promise<void> {
     if (frameQuery) {
       encoder.beginComputePass({ timestampWrites: { querySet: frameQuery, beginningOfPassWriteIndex: 0 } }).end();
     }
+    bristles.encode(encoder, simulation.buffers[simulation.current]);
     simulation.encode(encoder, steps);
     const pass = encoder.beginRenderPass({
       ...(frameQuery ? { timestampWrites: { querySet: frameQuery, endOfPassWriteIndex: 1 } } : {}),
@@ -181,7 +187,8 @@ async function main(): Promise<void> {
   let sampleTime = 0;
   function drawPoint(point: Point, previous?: Point, time = performance.now()): void {
     if (previous?.layer !== point.layer) previous = undefined;
-    simulation.stroke(point.x, point.y, previous?.x, previous?.y, previous ? (time-sampleTime)/1000 : 1/60, point.layer);
+    // BRISTLE: stylus hook, later: bristles.setPressure(event.pressure) (same [0,1] scale as the slider).
+    (useBristles ? bristles : simulation).stroke(point.x, point.y, previous?.x, previous?.y, previous ? (time-sampleTime)/1000 : 1/60, point.layer);
     sampleTime = time;
   }
   canvas.addEventListener('contextmenu', (event) => event.preventDefault());
@@ -196,6 +203,7 @@ async function main(): Promise<void> {
     if (!rotate) {
       drag.previous = hit(event);
       if (drag.previous) {
+        bristles.beginStroke(drag.previous.x, drag.previous.y); // BRISTLE:
         drawPoint(drag.previous, undefined, event.timeStamp);
 
       }
@@ -305,7 +313,7 @@ async function main(): Promise<void> {
   function showReady(): void {
     if (stoppedRendering) return;
     delete status.dataset.error;
-    status.textContent = `${paper.name} | 512 x 512 x 8 layers | Edges enlarged 10x for inspection`;
+    status.textContent = `${paper.name} | ${useBristles ? 'Bristle' : 'Round'} brush | 512 x 512 x 8 layers | Edges enlarged 10x for inspection`;
   }
   paperSelect.replaceChildren(...PAPER_NAMES.map(name => new Option(name, name)));
   paperSelect.value = paper.name;
@@ -327,6 +335,9 @@ async function main(): Promise<void> {
     }
   });
   showReady();
+  // BRISTLE: toggle wiring; the status line names the active brush.
+  const setBristles = (on: boolean) => { useBristles = on; showReady(); };
+  installBristleUI(bristles, setBristles);
   function animate(now: number) {
     const elapsed = now-lastTime; lastTime = now;
     if (!paused && !document.hidden) {
@@ -353,7 +364,7 @@ async function main(): Promise<void> {
           for (let i = 0; i < 150; i++) {
             const start = performance.now();
             const x = .2 + .6 * (i % 60) / 60;
-            simulation.stroke(x + .01, .5, x, .5, 1 / 60);
+            (useBristles ? bristles : simulation).stroke(x + .01, .5, x, .5, 1 / 60); // BRISTLE:
             render(1, query, resolve, read);
             await device.queue.onSubmittedWorkDone();
             const elapsed = performance.now() - start;
@@ -370,6 +381,8 @@ async function main(): Promise<void> {
       hardware: adapter.info, pause: () => { paused = true; },
       clear: () => { clearPaper(); render(); },
       stroke: (...args: Parameters<InkSimulation['stroke']>) => simulation.stroke(...args),
+      bristles: { enable: setBristles, setParams: (p: Parameters<BristleBrush['setParams']>[0]) => bristles.setParams(p), // BRISTLE:
+        params: () => bristles.params, begin: () => bristles.beginStroke(), stroke: (...args: Parameters<BristleBrush['stroke']>) => bristles.stroke(...args) }, // BRISTLE:
       step: async (n: number) => { for(let i=0;i<n;i++) render(1); await device.queue.onSubmittedWorkDone(); },
       render: () => render(), read: () => simulation.read(),
       sample: (x: number, y: number, layer = 0) => simulation.read({x,y,layer}),

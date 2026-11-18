@@ -67,11 +67,13 @@ export class InkSimulation {
   private simulate!: GPUComputePipeline;
   private groups: GPUBindGroup[] = [];
   private pending: number[][] = [];
-  private absorption = absorptionFromHex('#0e1116');
+  /** Optical absorption of the current ink (read by the bristle brush too). */
+  absorption = absorptionFromHex('#0e1116');
   setColor(hex: string) { this.absorption = absorptionFromHex(hex); }
   private uniforms: GPUBuffer[] = [];
   private paramBuffer: GPUBuffer;
-  private fiberBuffer: GPUBuffer;
+  /** Paper fibre/height map, GRID_SIZE^2 floats (read by the bristle brush too). */
+  readonly fiberBuffer: GPUBuffer;
   private proceduralFiber = makeFiberMap(GRID_SIZE);
   constructor(readonly device: GPUDevice) {
     this.buffers = [0, 1].map(() => device.createBuffer({ size: STATE_BUFFER_BYTES,
