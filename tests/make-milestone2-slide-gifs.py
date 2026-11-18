@@ -20,7 +20,14 @@ if len(landscape)>10 and '--seepage-only' not in sys.argv:
     frames=[Image.open(p).convert('RGB').resize((1050,930),Image.Resampling.LANCZOS) for p in landscape]
     # Show the destination briefly, then draw from a blank sheet and hold the result.
     final=Image.open(ROOT/'media/landscape-interface.png').convert('RGB').resize((1050,930),Image.Resampling.LANCZOS)
-    save_gif(ROOT/'media/landscape-drawing.gif',[final]+frames,[1200]+manifest['durationsMs'])
+    # GIF timing is quantized to 10 ms. Round cumulative time so the whole
+    # drawing and rotation play at 1.5x without per-frame rounding drift.
+    durations=[];elapsed=0;encoded=0
+    for duration in [1200]+manifest['durationsMs']:
+        elapsed+=duration/1.5
+        next_time=round(elapsed/10)*10
+        durations.append(next_time-encoded);encoded=next_time
+    save_gif(ROOT/'media/landscape-drawing.gif',[final]+frames,durations)
 if '--landscape-only' in sys.argv:
     sys.exit(0)
 seepage=sorted((ROOT/'media/frames/seepage').glob('[0-9]*.png'))
