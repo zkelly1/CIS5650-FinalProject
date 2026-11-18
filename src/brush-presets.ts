@@ -4,15 +4,15 @@ import type { InkParams } from './ink-simulation';
 export type BrushSettings = Omit<InkParams, 'thickness'>;
 export const BRUSH_PRESETS: { id: string; name: string; description: string; params: BrushSettings }[] = [
   { id: 'round-brush', name: 'Round Brush', description: 'A balanced brush for everyday ink strokes.',
-    params: { diffusion: .18, absorption: .65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0 } },
+    params: { diffusion: .18, absorption: .65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0, dryness: 0 } },
   { id: 'soft-wash', name: 'Soft Wash', description: 'A wide, wet brush for soft color washes.',
-    params: { diffusion: .16, absorption: .6, settling: .7, waterLoad: 8, radius: 18, roughness: .1 } },
+    params: { diffusion: .16, absorption: .6, settling: .7, waterLoad: 8, radius: 18, roughness: .1, dryness: 0 } },
   { id: 'fine-detail', name: 'Fine Detail', description: 'A small, controlled brush for branches and lettering.',
-    params: { diffusion: .04, absorption: 2, settling: 3, waterLoad: 1.5, radius: 2, roughness: .15 } },
+    params: { diffusion: .04, absorption: 2, settling: 3, waterLoad: 1.5, radius: 2, roughness: .15, dryness: 0 } },
   { id: 'dry-ink', name: 'Dry Ink', description: 'Less water and quick settling for textured marks.',
-    params: { diffusion: .03, absorption: 3, settling: 4, waterLoad: 1, radius: 4, roughness: .7 } },
+    params: { diffusion: .03, absorption: 3, settling: 4, waterLoad: 1, radius: 4, roughness: .7, dryness: 0 } },
   { id: 'flowing-ink', name: 'Flowing Ink', description: 'A wet brush with more spreading and feathering.',
-    params: { diffusion: .22, absorption: .3, settling: .4, waterLoad: 10, radius: 10, roughness: .3 } },
+    params: { diffusion: .22, absorption: .3, settling: .4, waterLoad: 10, radius: 10, roughness: .3, dryness: 0 } },
 ];
 
 export function initBrushPresets(apply: (params: BrushSettings) => void) {
