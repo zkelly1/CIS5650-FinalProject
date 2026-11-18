@@ -16,7 +16,7 @@ def save_gif(path,frames,durations):
     print(path.name,len(frames),path.stat().st_size)
 manifest=json.loads((ROOT/'performance/landscape-capture.json').read_text())
 landscape=[ROOT/manifest['frameDirectory']/f'{i:04d}.png' for i in range(manifest['frames'])]
-if len(landscape)>10:
+if len(landscape)>10 and '--seepage-only' not in sys.argv:
     frames=[Image.open(p).convert('RGB').resize((1050,930),Image.Resampling.LANCZOS) for p in landscape]
     # Show the destination briefly, then draw from a blank sheet and hold the result.
     final=Image.open(ROOT/'media/landscape-interface.png').convert('RGB').resize((1050,930),Image.Resampling.LANCZOS)

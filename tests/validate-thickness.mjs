@@ -12,7 +12,7 @@ const browser=await chromium.launch({channel:'chrome',headless:true,args:['--ena
 try {
  const p=await browser.newPage({viewport:{width:1200,height:1000}});
  await p.goto((process.env.TEST_URL||'http://127.0.0.1:5181')+'/?test');await p.waitForFunction(()=>window.inkTest);await p.evaluate(()=>inkTest.pause());
- const c=p.locator('#canvas');const box=await c.boundingBox();
+ const c=p.locator('#canvas');await c.scrollIntoViewIfNeeded();const box=await c.boundingBox();
  // Real ray-picked clicks on both sides, then a boundary/stability stress case.
  const scrollBefore=await p.evaluate(()=>scrollY);
  await p.mouse.click(box.x+box.width/2,box.y+box.height/2);

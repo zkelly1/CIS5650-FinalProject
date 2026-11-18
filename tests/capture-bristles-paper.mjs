@@ -4,19 +4,18 @@
 // then:                        python tests/make-bristle-paper-gif.py
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const out = `${root}media/frames/bristle-paper`;
-await rm(out, { recursive: true, force: true });
+const out = `${root}media/frames/bristle-paper-full-page`;
 await mkdir(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] });
-const page = await browser.newPage({ viewport: { width: 1200, height: 1000 } });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1240 } });
 const errors = []; page.on('pageerror', e => errors.push(e.message));
-let frame = 0, clip;
-const capture = async () => page.screenshot({ path: `${out}/${String(frame++).padStart(4, '0')}.png`, clip });
+let frame = 0;
+const capture = async () => page.screenshot({ path: `${out}/${String(frame++).padStart(4, '0')}.png`, fullPage: true });
 const hold = async n => { for (let i = 0; i < n; i++) { await page.evaluate(() => inkTest.step(2)); await capture(); } };
 
 try {
@@ -32,11 +31,11 @@ try {
     e.textContent = text;
   }, text);
   await label(' ');
-  await page.locator('#canvas').scrollIntoViewIfNeeded();
-  const a = await page.locator('#experiment').boundingBox(), c = await page.locator('#canvas').boundingBox();
-  // Crop to the sheet (centred in the canvas) plus a margin, not the whole wide canvas.
-  const width = Math.min(c.width, c.height * 1.3);
-  clip = { x: c.x + (c.width - width) / 2, y: a.y, width, height: c.y + c.height - a.y };
+  // Keep the full webpage and controls visible, like the other presentation GIFs.
+  const setHairs = async params => {
+    for (const [key, value] of Object.entries(params))
+      await page.locator(`[data-bristle="${key}"]`).fill(String(value));
+  };
 
   // A wave across the sheet, drawn a few segments per frame like a hand moving.
   const wave = async ({ bristles, y, amp = 0.06, n = 60, perFrame = 3 }) => {
@@ -55,9 +54,9 @@ try {
     await page.waitForFunction(() => !document.querySelector('#paper').disabled);
     await page.evaluate(({ params, bristleParams, color }) => {
       inkTest.clear(); inkTest.params(params); inkTest.color(color);
-      if (bristleParams) inkTest.bristles.setParams(bristleParams);
       inkTest.view(0, 0, 2.7);
     }, { params, bristleParams, color });
+    if (bristleParams) await setHairs(bristleParams);
     await label(text);
   };
 
@@ -73,7 +72,7 @@ try {
   await scene('default-paper', 'Bristle brush | individual hairs splay, drag and run dry', base, hairs, '#0e1116');
   await hold(4);
   await wave({ bristles: true, y: 0.38 });
-  await page.evaluate(() => inkTest.bristles.setParams({ pressure: 0.8, deformation: 0.8 }));
+  await setHairs({ pressure: 0.8, deformation: 0.8 });
   await wave({ bristles: true, y: 0.64 });
   await hold(10);
 
@@ -90,5 +89,5 @@ try {
   await hold(16);
 
   assert.deepEqual(errors, []);
-  console.log(frame, 'frames in media/frames/bristle-paper');
+  console.log(frame, 'frames in media/frames/bristle-paper-full-page');
 } finally { await browser.close(); }

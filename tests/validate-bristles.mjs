@@ -51,6 +51,7 @@ try {
   await page.evaluate(() => window.inkTest.clear());
   await page.locator('#bristle-toggle').check();
   assert.match(await page.locator('#status').textContent(), /Bristle brush/);
+  await page.locator('#canvas').scrollIntoViewIfNeeded();
   const box = await page.locator('#canvas').boundingBox();
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
   await page.mouse.move(cx - 120, cy); await page.mouse.down(); await page.mouse.move(cx + 120, cy + 40, { steps: 30 }); await page.mouse.up();
