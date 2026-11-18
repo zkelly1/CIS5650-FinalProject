@@ -11,8 +11,9 @@ export interface InkParams {
   radius: number;     // brush core radius in grid cells
   thickness: number; // physical sheet thickness in millimeters
   roughness: number;  // 0 = uniform paper, 1 = strongly fibrous
+  dryness: number;    // 0 = wet brush, 1 = dry brush, drier brush results in less ink settling in valleys on paper
 }
-export const DEFAULT_PARAMS: InkParams = { diffusion: 0.18, absorption: 0.65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0, thickness: 0.15 };
+export const DEFAULT_PARAMS: InkParams = { diffusion: 0.18, absorption: 0.65, settling: 1.1, waterLoad: 5, radius: 8, roughness: 0, thickness: 0.15, dryness: 0 };
 
 // define some fiber parameters
 //length of fiber strands in long direction (length)
@@ -71,12 +72,13 @@ export class InkSimulation {
   private uniforms: GPUBuffer[] = [];
   private paramBuffer: GPUBuffer;
   private fiberBuffer: GPUBuffer;
+  private proceduralFiber = makeFiberMap(GRID_SIZE);
   constructor(readonly device: GPUDevice) {
     this.buffers = [0, 1].map(() => device.createBuffer({ size: STATE_BUFFER_BYTES,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
     this.paramBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.fiberBuffer = device.createBuffer({ size: GRID_SIZE * GRID_SIZE * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
-    device.queue.writeBuffer(this.fiberBuffer, 0, makeFiberMap(GRID_SIZE));
+    this.setFiberMap();
     this.setParams({});
   }
   /** Updates any subset of the parameters; sim parameters take effect on the next step. */
@@ -85,6 +87,10 @@ export class InkSimulation {
     this.params = { ...this.params, ...change };
     const p = this.params;
     this.device.queue.writeBuffer(this.paramBuffer, 0, new Float32Array([p.diffusion, p.absorption, p.settling, p.roughness, this.verticalRate(), 1 / this.substeps(), 0, 0]));
+  }
+  setFiberMap(map: Float32Array<ArrayBuffer> = this.proceduralFiber) {
+    if (map.length !== GRID_SIZE * GRID_SIZE) throw new Error(`Fibre map must have ${GRID_SIZE * GRID_SIZE} values`);
+    this.device.queue.writeBuffer(this.fiberBuffer, 0, map);
   }
   // Effective moisture diffusivity (mm^2/s), illustrative rather than calibrated.
   // The 1/dz^2 factor makes thicker paper take longer to penetrate.
@@ -110,7 +116,7 @@ export class InkSimulation {
     ] }));
   }
   stroke(x: number, y: number, px = x, py = y, seconds = 1/60, layer = 0) {
-    this.pending.push([px*GRID_SIZE, py*GRID_SIZE, x*GRID_SIZE, y*GRID_SIZE, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, Math.max(0, Math.min(DEPTH_LAYERS-1, Math.round(layer))), ...this.absorption, 0]);
+    this.pending.push([px*GRID_SIZE, py*GRID_SIZE, x*GRID_SIZE, y*GRID_SIZE, Math.min(0.1, Math.max(0, seconds))*60, this.params.radius, this.params.waterLoad, Math.max(0, Math.min(DEPTH_LAYERS-1, Math.round(layer))), ...this.absorption, this.params.dryness]);
   }
   encode(encoder: GPUCommandEncoder, steps: number, querySet?: GPUQuerySet) {
     for (let i = 0; i < this.pending.length; i++) {
@@ -121,6 +127,7 @@ export class InkSimulation {
       pass.setPipeline(this.deposit);
       pass.setBindGroup(0, this.device.createBindGroup({ layout: this.deposit.getBindGroupLayout(0), entries: [
         { binding: 0, resource: { buffer: this.buffers[this.current] } }, { binding: 1, resource: { buffer } },
+        { binding: 2, resource: { buffer: this.fiberBuffer } },
       ] }));
       const span = 2 * (data[5] * 1.5 + 1) + 1; // matches the shader's margin around the segment
       pass.dispatchWorkgroups(Math.ceil((Math.abs(data[2]-data[0])+span)/8), Math.ceil((Math.abs(data[3]-data[1])+span)/8));

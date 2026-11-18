@@ -22,6 +22,10 @@
       </header>
       <div class="settings">
       <section class="sliders" aria-label="Ink and paper parameters">
+        <label class="preset" title="Paper texture. Add more by placing a folder of maps in the paper/ directory.">
+          <span>Paper</span>
+          <select id="paper"></select>
+        </label>
         <label title="How fast water spreads between neighbouring cells. Higher = wider bleed.">
           <span>Diffusion</span>
           <input type="range" data-param="diffusion" min="0.02" max="0.24" step="0.01" />
@@ -50,6 +54,11 @@
         <label title="Paper fibre variation. 0 = perfectly uniform, 1 = fibrous, uneven bleeding.">
           <span>Paper roughness</span>
           <input type="range" data-param="roughness" min="0" max="1" step="0.05" />
+          <output></output>
+        </label>
+        <label title="How dry the brush is. A dry brush carries less water and only touches the paper's high points, so rough paper shows through the stroke.">
+          <span>Brush dryness</span>
+          <input type="range" data-param="dryness" min="0" max="1" step="0.05" />
           <output></output>
         </label>
         <label title="Sheet thickness in millimeters. Changing this starts a fresh sheet. Thinner paper lets ink reach the back sooner.">

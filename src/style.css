@@ -18,6 +18,9 @@ button:focus-visible, canvas:focus-visible { outline: 2px solid #91baff; outline
 .sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; align-items: center; margin-bottom: 0; padding: 16px; border: 1px solid #303846; border-radius: 8px; background: #161c26; }
 .sliders label { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; font-size: 13px; color: #a9b1c1; }
 .sliders input { width: 100%; accent-color: #91baff; }
+.sliders .preset { grid-template-columns: 110px 1fr; }
+.sliders select { width: 100%; padding: 6px 8px; border: 1px solid #485164; border-radius: 6px; background: #222a37; color: inherit; font: inherit; }
+.sliders select:disabled { opacity: 0.6; }
 .sliders output { text-align: right; font-variant-numeric: tabular-nums; color: #e7e9ee; }
 .sliders button { padding: 6px 12px; justify-self: start; font-size: 13px; }
 .controls { display: flex; flex-wrap: wrap; gap: 8px; }

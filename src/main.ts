@@ -5,10 +5,12 @@ import './style.css';
 import { InkSimulation, type InkParams } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
 import shaderCode from './paper.wgsl?raw';
+import { DEFAULT_PAPER, PAPER_NAMES, loadPaper, type Paper } from './papers';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const resetButton = document.querySelector<HTMLButtonElement>('#reset')!;
+const paperSelect = document.querySelector<HTMLSelectElement>('#paper')!;
 
 // Tracks whether rendering has been stopped because of a GPU error.
 // The device-lost and uncaptured-error handlers in getGPU() set this to true.
@@ -95,12 +97,21 @@ async function main(): Promise<void> {
   const simulation = new InkSimulation(device);
   await simulation.init();
   const picker = initColorPicker(hex => simulation.setColor(hex));
-  const bindGroups = simulation.buffers.map(buffer => device.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0), entries: [
-      { binding: 0, resource: { buffer: viewBuffer } },
-      { binding: 1, resource: { buffer } },
-    ],
-  }));
+  // The whole sheet maps onto the paper texture once, with linear filtering.
+  const paperSampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+  let paper: Paper = await loadPaper(device, DEFAULT_PAPER);
+  function makeBindGroups(): GPUBindGroup[] {
+    return simulation.buffers.map(buffer => device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0), entries: [
+        { binding: 0, resource: { buffer: viewBuffer } },
+        { binding: 1, resource: { buffer } },
+        { binding: 2, resource: paperSampler },
+        { binding: 3, resource: paper.albedo.createView() },
+        { binding: 4, resource: paper.normal.createView() },
+      ],
+    }));
+  }
+  let bindGroups = makeBindGroups();
   function clearPaper() { simulation.clear(); }
   let paused = false;
   let accumulator = 0;
@@ -116,7 +127,7 @@ async function main(): Promise<void> {
   function render(steps = 0, frameQuery?: GPUQuerySet, resolveBuffer?: GPUBuffer, readBuffer?: GPUBuffer): void {
     if (stoppedRendering || !context || !depthTexture) return;
     device.queue.writeBuffer(viewBuffer, 0, new Float32Array([
-      canvas.width / canvas.height, yaw, pitch, distance, simulation.params.thickness * 0.1, 0, 0, 0,
+      canvas.width / canvas.height, yaw, pitch, distance, simulation.params.thickness * 0.1, paper.relief, 0, 0,
     ]));
     const encoder = device.createCommandEncoder({ label: 'Paper frame' });
     if (frameQuery) {
@@ -289,6 +300,33 @@ async function main(): Promise<void> {
   if (!stoppedRendering) {
     status.textContent = `3D paper | ${GRID_SIZE} x ${GRID_SIZE} x ${DEPTH_LAYERS} layers | Edges enlarged 10x for inspection`;
   }
+
+  // Paper presets
+  function showReady(): void {
+    if (stoppedRendering) return;
+    delete status.dataset.error;
+    status.textContent = `${paper.name} | 512 x 512 x 8 layers | Edges enlarged 10x for inspection`;
+  }
+  paperSelect.replaceChildren(...PAPER_NAMES.map(name => new Option(name, name)));
+  paperSelect.value = paper.name;
+  paperSelect.addEventListener('change', async () => {
+    const name = paperSelect.value;
+    paperSelect.disabled = true;
+    status.textContent = `Loading ${name}…`;
+    try {
+      paper = await loadPaper(device, name);
+      simulation.setFiberMap(paper.fiber);
+      bindGroups = makeBindGroups();
+      render();
+      showReady();
+    } catch (error) {
+      paperSelect.value = paper.name;
+      showError(error);
+    } finally {
+      paperSelect.disabled = false;
+    }
+  });
+  showReady();
   function animate(now: number) {
     const elapsed = now-lastTime; lastTime = now;
     if (!paused && !document.hidden) {

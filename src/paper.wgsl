@@ -6,11 +6,17 @@ struct View {
   yaw: f32,
   pitch: f32,
   distance: f32,
-  halfDepth: f32, pad0: f32, pad1: f32, pad2: f32,
+  halfDepth: f32,
+  relief: f32,  // normal-map lighting strength, 0 = flat paper
+  pad1: f32, pad2: f32,
 }
 @group(0) @binding(0) var<uniform> view: View;
 
 @group(0) @binding(1) var<storage, read> cells: array<Cell>;
+// Paper preset textures (1x1 for the default paper). Albedo holds sRGB values.
+@group(0) @binding(2) var paperSampler: sampler;
+@group(0) @binding(3) var paperAlbedo: texture_2d<f32>;
+@group(0) @binding(4) var paperNormal: texture_2d<f32>;
 struct VertexOutput {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
@@ -90,7 +96,14 @@ fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
                     mix(opticalAt(base+q.y*N+p.x), opticalAt(base+q.y*N+q.x), f.x), f.y);
   // Beer-Lambert: T = exp(-sum(m_i * k_i)). A 3-channel transparent-ink approximation.
   // k is calibrated so 0.5 units of pigment reproduce the selected color on white.
-  let paper = toLinear(vec3f(0.965, 0.949, 0.906));
+  // The ink filters the paper's own colour, so its texture shows through.
+  let paper = toLinear(textureSample(paperAlbedo, paperSampler, input.uv).rgb);
   let color = paper * exp(-2.0 * max(optical.rgb, vec3f(0)));
-  return vec4f(toSRGB(input.shade * color * (1.0 - 0.07 * clamp(optical.a, 0.0, 1.0))), 1);
+  // Light the broad faces with the paper's normal map (tangent space, +Y = up
+  // in the image), so ink lying in a crease is shaded with the paper around it.
+  let normal = normalize(textureSample(paperNormal, paperSampler, input.uv).xyz * 2.0 - 1.0);
+  let light = normalize(vec3f(-0.45, 0.55, 0.7));
+  let relief = select(0.0, view.relief, input.shade > 0.9);
+  let bump = mix(1.0, max(dot(normal, light), 0.0) / light.z, relief);
+  return vec4f(toSRGB(input.shade * bump * color * (1.0 - 0.07 * clamp(optical.a, 0.0, 1.0))), 1);
 }
