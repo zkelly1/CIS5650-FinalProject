@@ -57,7 +57,13 @@
           <input type="range" data-param="thickness" min="0.05" max="0.8" step="0.01" />
           <output></output>
         </label>
-        <button id="reset-sliders" type="button">Reset sliders</button>
+      </section>
+      <section class="brush-presets" aria-label="Brush style presets">
+        <label for="brush-style">Brush Style</label>
+        <select id="brush-style" aria-describedby="brush-description brush-preserve"></select>
+        <p id="brush-description"></p>
+        <button id="reset-sliders" type="button">Restore preset</button>
+        <p id="brush-preserve">Keeps ink color and paper thickness.</p>
       </section>
       <section class="color-picker" aria-label="Ink color">
         <div class="color-plane">

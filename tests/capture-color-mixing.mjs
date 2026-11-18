@@ -2,13 +2,15 @@ import {chromium} from 'playwright';
 import {mkdir} from 'node:fs/promises';
 await mkdir('media/frames/color-mixing',{recursive:true});
 const b=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
-const p=await b.newPage({viewport:{width:1440,height:1120}});
+const p=await b.newPage({viewport:{width:1440,height:1240}});
 await p.goto((process.env.TEST_URL||'http://127.0.0.1:5180')+'/?test');await p.waitForFunction(()=>window.inkTest);
 await p.evaluate(()=>{inkTest.pause();inkTest.clear()});
+await p.locator('#brush-style').selectOption('soft-wash');
+await p.locator('[data-param="thickness"]').fill('0.6');
 for(const [k,v] of Object.entries({radius:20,waterLoad:5,roughness:.3,diffusion:.18,absorption:.7,settling:.8}))await p.locator(`[data-param="${k}"]`).fill(String(v));
 await p.locator('#zoom-in').click();await p.locator('#zoom-in').click();
 let frame=0;
-async function snap(){await p.screenshot({path:`media/frames/color-mixing/${String(frame++).padStart(4,'0')}.png`});}
+async function snap(){await p.screenshot({path:`media/frames/color-mixing/${String(frame++).padStart(4,'0')}.png`,fullPage:true});}
 async function stroke(a,z,seconds=.003){await p.evaluate(async({a,z,seconds})=>{inkTest.stroke(...z,...a,seconds);await inkTest.step(1)},{a,z,seconds});}
 for(let i=0;i<8;i++)await snap();
 // Three hand-painted disks: cyan+magenta=blue, cyan+yellow=green, magenta+yellow=red.

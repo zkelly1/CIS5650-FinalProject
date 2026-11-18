@@ -87,7 +87,17 @@ See [baseline measurements](performance/Milestone1_Baseline.md) and [raw results
 
 ## Milestone 2: ink color and mixing
 
-The color panel has a saturation/brightness field, hue strip, synchronized RGB (0â€“255) and six-digit hex inputs, and quick swatches. Arrow keys adjust the field; Shift makes larger steps. Changing color affects new deposits only. Reset sliders does not erase the selected color.
+### Brush style presets
+
+The **Brush Style** panel sits between the parameter sliders and ink color. Choose **Round Brush**, **Soft Wash**, **Fine Detail**, **Dry Ink**, or **Flowing Ink** to load a starting combination of radius, water load, diffusion, drying, settling, and roughness. Every slider remains editable, and **Restore preset** reapplies the selected style's defaults.
+
+Switching or restoring styles preserves the existing drawing, selected ink color, and paper thickness. Thickness remains a separate sheet control because changing it clears the paper. These are parameter presets for the current soft round brush; broad-edge pen geometry and distinct brush shapes remain future work.
+
+Run `node tests/validate-brush-presets.mjs` against Vite on port 5181 (or set `TEST_URL`) to check selection, editing/restoration, keyboard use, responsive layout, and preservation of pigment, color, and thickness. `tests/capture-landscape.mjs` records the full-page landscape demo using actual preset selections and slider events, followed by a 360-degree inspection of the finished sheet.
+
+### Color controls
+
+The color panel has a saturation/brightness field, hue strip, synchronized RGB (0â€“255) and six-digit hex inputs, and quick swatches. Arrow keys adjust the field; Shift makes larger steps. Changing color affects new deposits only. Restore preset keeps the selected color.
 
 We use a **three-channel Beerâ€“Lambert transparent-ink approximation**, not additive screen-color averaging or a full spectral paint model:
 
@@ -115,6 +125,8 @@ With the development server on port 5180, run `node tests/validate-color.mjs`. I
 
 
 ## Milestone 2: paper thickness and seepage
+
+The [matched-resolution performance run](performance/Milestone2_Benchmarks_1024.md) uses Milestone 1's settings at **1024 × 1024 × 8**. Run `node tests/benchmark-milestone2.mjs` against Vite on port 5181 (or set `TEST_URL`); the script selects `?test&grid=1024`, validates settings against the saved baseline, and writes `performance/milestone2-1024.json`. Normal sessions retain the 512 × 512 × 8 grid. The larger benchmark requests two 384 MiB state buffers and reports unsupported GPU limits explicitly.
 
 The model uses a conservative finite-volume discretization of anisotropic moisture diffusion, with mobile color advected by that moisture flux. It is a reduced porous-medium model, not Navier-Stokes or a calibrated nonlinear Richards solver.
 

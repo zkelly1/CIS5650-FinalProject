@@ -14,7 +14,9 @@ try {
  await p.goto((process.env.TEST_URL||'http://127.0.0.1:5181')+'/?test');await p.waitForFunction(()=>window.inkTest);await p.evaluate(()=>inkTest.pause());
  const c=p.locator('#canvas');const box=await c.boundingBox();
  // Real ray-picked clicks on both sides, then a boundary/stability stress case.
+ const scrollBefore=await p.evaluate(()=>scrollY);
  await p.mouse.click(box.x+box.width/2,box.y+box.height/2);
+ assert.equal(await p.evaluate(()=>scrollY),scrollBefore,'Canvas focus must not scroll the page away from the initial stroke');
  let state=await p.evaluate(()=>inkTest.read());assert(state.layers[0].pigment>0);assert.equal(state.layers[7].pigment,0);
  await p.evaluate(()=>{inkTest.clear();inkTest.view(Math.PI);});
  await p.mouse.click(box.x+box.width/2,box.y+box.height/2);

@@ -2,18 +2,19 @@ import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir, writeFile} from 'node:fs/promises';
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--enable-unsafe-webgpu']});
-const page=await browser.newPage({viewport:{width:1440,height:1120}});
+const page=await browser.newPage({viewport:{width:1440,height:1240}});
 const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 await mkdir('media/frames/seepage',{recursive:true});
 let frame=0;
-const capture=async()=>page.screenshot({path:`media/frames/seepage/${String(frame++).padStart(4,'0')}.png`});
+const capture=async()=>page.screenshot({path:`media/frames/seepage/${String(frame++).padStart(4,'0')}.png`,fullPage:true});
 try {
- await page.goto('http://127.0.0.1:5181/?test');
+ await page.goto((process.env.TEST_URL||'http://127.0.0.1:5181')+'/?test');
  await page.waitForFunction(()=>window.inkTest||document.querySelector('#status').dataset.error);
  assert.equal(await page.locator('#status').getAttribute('data-error'),null);
  await page.evaluate(()=>inkTest.pause());
  const results=[];
  for(const thickness of [.06,.15,.6]) {
+  await page.locator('#brush-style').selectOption('flowing-ink');
   await page.evaluate(t=>{inkTest.params({thickness:t,diffusion:.18,absorption:.3,settling:.4,waterLoad:8,radius:12,roughness:0});inkTest.clear();inkTest.view(0,0,3.6);},thickness);
   // Capture annotation only. The paper, ink and controls are the real application.
   const label=async text=>page.evaluate(text=>{let e=document.querySelector('#experiment');if(!e){e=document.createElement('p');e.id='experiment';e.style.cssText='margin:8px 0;color:#b9dbe8;font:600 18px system-ui';document.querySelector('#canvas').before(e);}e.textContent=text;},text);
@@ -40,7 +41,7 @@ try {
    const angle=i/96*Math.PI*2;
    await label(`${thickness.toFixed(2)} mm paper | ${i>24&&i<72?'Back: only pigment that penetrated the sheet':'Front and edges'} | 360 degree inspection`);
    await page.evaluate(a=>inkTest.view(a,.16*Math.sin(a),3.6),angle);await capture();
-   if(i===48){await page.screenshot({path:`media/seepage-back-${thickness}.png`});for(let j=0;j<18;j++)await capture();}
+   if(i===48){await page.screenshot({path:`media/seepage-back-${thickness}.png`,fullPage:true});for(let j=0;j<18;j++)await capture();}
   }
  }
  assert(results[0].backFraction>results[1].backFraction*2);

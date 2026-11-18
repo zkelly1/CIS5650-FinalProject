@@ -1,4 +1,4 @@
-import { GRID_SIZE, DEPTH_LAYERS, shaderSource } from './gpu-grid';
+import { GRID_SIZE, DEPTH_LAYERS, STATE_BUFFER_BYTES, shaderSource } from './gpu-grid';
 import { absorptionFromHex } from './ink-color';
 import depositCode from './deposit.wgsl?raw';
 import simulateCode from './simulate.wgsl?raw';
@@ -72,7 +72,7 @@ export class InkSimulation {
   private paramBuffer: GPUBuffer;
   private fiberBuffer: GPUBuffer;
   constructor(readonly device: GPUDevice) {
-    this.buffers = [0, 1].map(() => device.createBuffer({ size: GRID_SIZE * GRID_SIZE * DEPTH_LAYERS * 48,
+    this.buffers = [0, 1].map(() => device.createBuffer({ size: STATE_BUFFER_BYTES,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST }));
     this.paramBuffer = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     this.fiberBuffer = device.createBuffer({ size: GRID_SIZE * GRID_SIZE * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });

@@ -1,7 +1,8 @@
-import { shaderSource } from './gpu-grid';
+import { shaderSource, GRID_SIZE, DEPTH_LAYERS, STATE_BUFFER_BYTES } from './gpu-grid';
 import { initColorPicker } from './color-picker';
+import { initBrushPresets } from './brush-presets';
 import './style.css';
-import { InkSimulation, DEFAULT_PARAMS, type InkParams } from './ink-simulation';
+import { InkSimulation, type InkParams } from './ink-simulation';
 import { paperPoint, type Point } from './paper-view';
 import shaderCode from './paper.wgsl?raw';
 
@@ -35,7 +36,12 @@ async function getGPU(): Promise<{ adapter: GPUAdapter; device: GPUDevice }> {
   }
   
   // Finally, get the device from the adapter 
-  const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('timestamp-query') ? ['timestamp-query'] : [] });
+  if (STATE_BUFFER_BYTES > adapter.limits.maxStorageBufferBindingSize || STATE_BUFFER_BYTES > adapter.limits.maxBufferSize) {
+    throw new Error(`This GPU cannot allocate the ${GRID_SIZE} × ${GRID_SIZE} × ${DEPTH_LAYERS} simulation buffers.`);
+  }
+  const requiredLimits: Record<string, number> = STATE_BUFFER_BYTES > 128 * 1024 * 1024
+    ? { maxStorageBufferBindingSize: STATE_BUFFER_BYTES, maxBufferSize: Math.max(256 * 1024 * 1024, STATE_BUFFER_BYTES) } : {};
+  const device = await adapter.requestDevice({ requiredFeatures: adapter.features.has('timestamp-query') ? ['timestamp-query'] : [], requiredLimits });
 
   // Register a callback for when this device is lost and can no longer be used.
   // Using .then registers the callback without waiting for device loss here.
@@ -171,7 +177,7 @@ async function main(): Promise<void> {
   canvas.addEventListener('pointerdown', (event) => {
     if ((event.button !== 0 && event.button !== 2) || drag) return;
     event.preventDefault();
-    canvas.focus();
+    canvas.focus({ preventScroll: true });
     canvas.setPointerCapture(event.pointerId);
     const rotate = event.button === 2 || event.shiftKey;
     drag = { id: event.pointerId, x: event.clientX, y: event.clientY, rotate };
@@ -267,19 +273,21 @@ async function main(): Promise<void> {
       input.nextElementSibling!.textContent = Number(input.value).toString();
     }
   }
+  const brushPresets = initBrushPresets(params => {
+    simulation.setParams(params);
+    syncSliders();
+    render();
+  });
   for (const input of sliderInputs) {
     input.addEventListener('input', () => {
       simulation.setParams({ [input.dataset.param as keyof InkParams]: Number(input.value) });
       input.nextElementSibling!.textContent = Number(input.value).toString();
+      brushPresets.sync();
     });
   }
-  document.querySelector('#reset-sliders')!.addEventListener('click', () => {
-    simulation.setParams(DEFAULT_PARAMS);
-    syncSliders();
-  });
   syncSliders();
   if (!stoppedRendering) {
-    status.textContent = '3D paper | 512 x 512 x 8 layers | Edges enlarged 10x for inspection';
+    status.textContent = `3D paper | ${GRID_SIZE} x ${GRID_SIZE} x ${DEPTH_LAYERS} layers | Edges enlarged 10x for inspection`;
   }
   function animate(now: number) {
     const elapsed = now-lastTime; lastTime = now;
@@ -320,6 +328,7 @@ async function main(): Promise<void> {
         } finally { query.destroy(); resolve.destroy(); read.destroy(); }
       },
       benchmark: () => simulation.benchmark(),
+      configuration: { grid: [GRID_SIZE, GRID_SIZE, DEPTH_LAYERS], stateMiB: 2 * STATE_BUFFER_BYTES / 1024 ** 2 },
       hardware: adapter.info, pause: () => { paused = true; },
       clear: () => { clearPaper(); render(); },
       stroke: (...args: Parameters<InkSimulation['stroke']>) => simulation.stroke(...args),
@@ -327,7 +336,7 @@ async function main(): Promise<void> {
       render: () => render(), read: () => simulation.read(),
       sample: (x: number, y: number, layer = 0) => simulation.read({x,y,layer}),
       view: (y: number, p = 0, d = 4) => { yaw=y; pitch=p; distance=d; render(); },
-      params: (p: Partial<InkParams>) => { simulation.setParams(p); syncSliders(); render(); },
+      params: (p: Partial<InkParams>) => { simulation.setParams(p); syncSliders(); brushPresets.sync(); render(); },
       color: (hex: string) => picker.setHex(hex),
       frames: () => frameTimes.slice(),
       resume: () => { paused = false; accumulator = 0; lastTime = performance.now(); },

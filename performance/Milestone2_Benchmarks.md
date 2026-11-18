@@ -1,5 +1,7 @@
 # Milestone 2 benchmarks — November 18, 2026
 
+This report preserves the earlier 512 × 512 × 8 measurements. The [new run at Milestone 1's 1024 × 1024 resolution, extended to eight layers](Milestone2_Benchmarks_1024.md), supplies the current presentation's performance table.
+
 Measured local `milestone-2` at `bdca300` on an NVIDIA GeForce RTX 3070 (driver 32.0.16.1656), AMD Ryzen 7 3700X, Windows, Chrome 158.0.8127.36, headless hardware WebGPU. The simulation has 512 × 512 × 8 cells and two 96 MiB state buffers. Viewport: 1100 × 900; canvas: 1050 × 583.
 
 | Default thickness: 0.15 mm | Median | p95 |
@@ -23,7 +25,7 @@ The historical Milestone 1 fibers run used a 1024 × 1024 surface and 32 MiB of 
 
 Validation passed: `pnpm build`, `tests/validate-color.mjs`, and `tests/validate-thickness.mjs`. The fresh benchmark also verified finite/nonnegative state, pigment conservation, and no reported GPU/page errors.
 
-To reproduce, run `pnpm dev --port 5181`, then `node tests/benchmark-milestone2.mjs`. Installed Google Chrome is required. `TEST_URL` overrides the server URL. For the color/thickness checks, set `TEST_URL=http://127.0.0.1:5181`.
+These measurements used the benchmark script at the recorded revision. The current `tests/benchmark-milestone2.mjs` runs the matched-resolution 1024 × 1024 × 8 experiment described in [the newer report](Milestone2_Benchmarks_1024.md). Installed Google Chrome is required. `TEST_URL` overrides the server URL. For the color/thickness checks, set `TEST_URL=http://127.0.0.1:5181`.
 
 The saved seepage experiment in [seepage-results.json](seepage-results.json) uses different material settings and four simulated seconds: rear-layer pigment shares are 10.39%, 4.27%, and 0% for 0.06, 0.15, and 0.60 mm respectively. See `tests/capture-seepage.mjs` for that separate procedure.
 
